@@ -1,5 +1,21 @@
+# Python
 venv/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Environment
 .env
+.env.local
+
+# Mac
 .DS_Store
+
+# Editors
+.vscode/
+.idea/
+
+# Logs
+*.log
