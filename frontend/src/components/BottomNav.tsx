@@ -11,8 +11,8 @@ interface NavItem {
 }
 
 const ITEMS: NavItem[] = [
-  { to: "/", en: "Home", hi: "होम", icon: Home, end: true },
-  { to: "/dressing-guide", en: "Dressing", hi: "ड्रेसिंग", icon: Bandage },
+  { to: "/home", en: "Home", hi: "होम", icon: Home, end: true },
+  { to: "/dressing", en: "Dressing", hi: "ड्रेसिंग", icon: Bandage },
   { to: "/progress", en: "Progress", hi: "प्रगति", icon: LineChart },
   { to: "/alerts", en: "Alerts", hi: "अलर्ट", icon: Bell },
 ];

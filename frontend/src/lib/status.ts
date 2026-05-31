@@ -1,7 +1,7 @@
 import type { Status } from "../types";
 
 // Visual + textual treatment for each status band. Labels describe *change*
-// only — never a diagnosis (no "healing", "infected", etc.).
+// only — never a diagnosis claim.
 interface StatusMeta {
   /** Tailwind classes for a solid badge. */
   badge: string;

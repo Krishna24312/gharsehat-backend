@@ -1,14 +1,17 @@
-import { ArrowRight, CalendarCheck, TrendingUp } from "lucide-react";
+import { AlertCircle, Camera, Plus, TrendingDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Card, ErrorState, Spinner } from "../components/common";
+import { CTAButton } from "../components/CTAButton";
 import { Disclaimer } from "../components/Disclaimer";
 import { Layout } from "../components/Layout";
 import { ComingSoonBanner } from "../components/LanguageSelector";
 import { PhotoStrip } from "../components/PhotoStrip";
+import { ProgressBar } from "../components/ProgressBar";
 import { StatusBadge } from "../components/StatusBadge";
 import { useCheckIn } from "../context/CheckInContext";
 import { useLanguage } from "../context/LanguageContext";
 import { usePatientHistory } from "../hooks/usePatientHistory";
+import { STATUS_META } from "../lib/status";
 
 // Static fallback for the demo patient, used only if the backend is unreachable
 // so the caregiver can still reach the check-in flow.
@@ -29,10 +32,14 @@ export function Home() {
 
   const patient = data ?? RAVI_FALLBACK;
   const latest = data?.history.at(-1);
+  const previous = data && data.history.length > 1 ? data.history[data.history.length - 2] : null;
+  const lastChange = latest && previous ? Math.abs(latest.final_score - previous.final_score) : 15;
+  const trendTone = latest?.status ?? "green";
+  const trendLabel = latest ? STATUS_META[latest.status].labelEn : "Low change";
 
   function startCheckIn() {
     reset(); // fresh check-in flow from Home
-    navigate("/checkin");
+    navigate("/capture");
   }
 
   return (
@@ -40,66 +47,69 @@ export function Home() {
       <div className="space-y-4">
         <ComingSoonBanner />
 
-        {/* Greeting */}
-        <div>
-          <h1 className={`text-xl font-bold text-stone-800 ${hiClass}`}>
-            {isHindi
-              ? `नमस्ते, रवि जी — स्वस्थ होने का दिन ${patient.day_of_recovery}`
-              : `Namaste, ${patient.name} ji — Day ${patient.day_of_recovery} of recovery`}
-          </h1>
-          <p className="mt-1 text-sm text-stone-500">
-            {tr(
-              `${patient.name} · ${patient.age} · ${patient.gender} · ${patient.burn_location} · ${patient.burn_type}`,
-              `${patient.age} वर्ष · ${patient.burn_location} · ${patient.burn_type}`,
-            )}
-          </p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-extrabold tracking-tight text-brand">GharSehat</h1>
+            <p className={`mt-1 text-sm text-stone-500 ${hiClass}`}>
+              {isHindi
+                ? `नमस्ते, रवि जी — स्वस्थ होने का दिन ${patient.day_of_recovery}`
+                : `Namaste, ${patient.name} ji — Day ${patient.day_of_recovery} of recovery`}
+            </p>
+          </div>
+          {latest && <StatusBadge status={latest.status} />}
         </div>
 
-        {/* Daily check-in due card */}
-        <Card className="border-l-4 border-l-brand">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
           <div className="flex items-start gap-3">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand/10 text-brand">
-              <CalendarCheck className="h-5 w-5" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className={`font-semibold text-stone-800 ${hiClass}`}>
-                {tr("Daily check-in due", "आज का चेक-इन बाकी है")}
+            <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+            <div>
+              <p className={`text-sm font-bold text-amber-900 ${hiClass}`}>
+                {tr("Daily check-in due", "आज की जाँच बाकी है")}
               </p>
-              <p className={`mt-0.5 flex items-center gap-1 text-sm text-stone-500 ${hiClass}`}>
-                <TrendingUp className="h-4 w-4 text-emerald-500" />
-                {tr("Previous trend: improving", "पिछला रुझान: सुधार")}
-              </p>
-              <p className={`mt-1 text-sm text-stone-500 ${hiClass}`}>
-                {tr(
-                  "Complete today's check-in to compare change.",
-                  "बदलाव की तुलना के लिए आज का चेक-इन पूरा करें।",
-                )}
+              <p className={`mt-0.5 text-xs text-amber-800/80 ${hiClass}`}>
+                {tr("Takes about 2 minutes.", "लगभग 2 मिनट लगते हैं।")}
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={startCheckIn}
-            className={`mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3 font-semibold text-white shadow-card transition active:scale-[0.99] ${hiClass}`}
-          >
-            {tr("Start today's check-in", "आज का चेक-इन शुरू करें")}
-            <ArrowRight className="h-4 w-4" />
-          </button>
+        </div>
+
+        <Card>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className={`text-xs font-bold uppercase tracking-wide text-stone-400 ${hiClass}`}>
+                {tr("Wound", "घाव")}
+              </p>
+              <p className={`mt-0.5 text-sm font-bold text-stone-800 ${hiClass}`}>
+                {tr(
+                  `${patient.burn_location} — ${patient.burn_type}`,
+                  `${patient.burn_location} — ${patient.burn_type}`,
+                )}
+              </p>
+            </div>
+            <span className={`rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-700 ${hiClass}`}>
+              {tr("Monitor", "निगरानी")}
+            </span>
+          </div>
+          <div className="mt-4 space-y-3">
+            <ProgressBar
+              label={tr("Visual change trend", "बदलाव का रुझान")}
+              value={latest ? latest.final_score : 20}
+              tone={trendTone}
+              badge={tr(trendLabel, STATUS_META[trendTone].labelHi)}
+            />
+            <ProgressBar
+              label={tr("Last day-to-day change", "पिछला रोज़ का बदलाव")}
+              value={lastChange}
+              tone={lastChange >= 30 ? "red" : lastChange >= 15 ? "amber" : "green"}
+              badge={tr(lastChange >= 30 ? "Large" : lastChange >= 15 ? "Some" : "Minimal", lastChange >= 30 ? "ज़्यादा" : lastChange >= 15 ? "कुछ" : "बहुत कम")}
+            />
+          </div>
         </Card>
 
-        {/* Recent days strip */}
-        <Card>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className={`font-semibold text-stone-800 ${hiClass}`}>
-              {tr("Recent days", "हाल के दिन")}
-            </h2>
-            {latest && (
-              <span className="flex items-center gap-1.5 text-xs text-stone-400">
-                <span className={hiClass}>{tr("Latest", "नवीनतम")}</span>
-                <StatusBadge status={latest.status} />
-              </span>
-            )}
-          </div>
+        <div>
+          <p className={`mb-2 text-xs font-bold uppercase tracking-wide text-stone-500 ${hiClass}`}>
+            {tr("Photo history", "फोटो इतिहास")}
+          </p>
 
           {loading && <Spinner label={tr("Loading history…", "इतिहास लोड हो रहा है…")} />}
 
@@ -112,8 +122,49 @@ export function Home() {
             />
           )}
 
-          {!loading && !error && data && <PhotoStrip history={data.history} />}
-        </Card>
+          {!loading && !error && data && (
+            <Card>
+              <PhotoStrip history={data.history} />
+            </Card>
+          )}
+
+          {!data && !loading && (
+            <div className="grid grid-cols-4 gap-2">
+              {[1, 2, 3].map((day) => (
+                <div key={day} className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg bg-stone-100">
+                  <Camera className="h-4 w-4 text-stone-400" />
+                  <span className={`text-[10px] font-semibold text-stone-500 ${hiClass}`}>
+                    {tr("Day", "दिन")} {day}
+                  </span>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={startCheckIn}
+                className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-brand/40 text-brand"
+              >
+                <Plus className="h-4 w-4" />
+                <span className={`text-[10px] font-bold ${hiClass}`}>{tr("Today", "आज")}</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        <CTAButton onClick={startCheckIn} className={hiClass}>
+          {tr("Start today's check-in", "आज की जाँच शुरू करें")}
+        </CTAButton>
+
+        <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+          <div className="flex items-start gap-2">
+            <TrendingDown className="mt-0.5 h-4 w-4 shrink-0" />
+            <p className={hiClass}>
+              {tr(
+                "Keep taking photos from the same distance with the reference card visible.",
+                "रेफरेंस कार्ड दिखाते हुए एक ही दूरी से फोटो लेते रहें।",
+              )}
+            </p>
+          </div>
+        </div>
 
         <Disclaimer />
       </div>

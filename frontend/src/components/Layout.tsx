@@ -32,7 +32,7 @@ export function Layout({ children, showBack, backTo, hideNav }: LayoutProps) {
                 <ChevronLeft className="h-5 w-5" />
               </button>
             )}
-            <Link to="/" className="flex items-center gap-1.5">
+            <Link to="/home" className="flex items-center gap-1.5">
               <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand text-white">
                 <HeartPulse className="h-4 w-4" />
               </span>

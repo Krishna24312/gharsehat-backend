@@ -1,8 +1,11 @@
 import { ArrowRight, Bandage, Phone, Stethoscope } from "lucide-react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { Card } from "../components/common";
+import { CTALink } from "../components/CTAButton";
 import { Disclaimer } from "../components/Disclaimer";
+import { InfoBox } from "../components/InfoBox";
 import { Layout } from "../components/Layout";
+import { ProgressBar } from "../components/ProgressBar";
 import { StatusBadge } from "../components/StatusBadge";
 import { useCheckIn } from "../context/CheckInContext";
 import { useLanguage } from "../context/LanguageContext";
@@ -25,7 +28,7 @@ export function Result() {
 
   // Opened directly without a completed check-in → back to Home.
   if (!hasResult || !assessResult) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/home" replace />;
   }
 
   const meta = STATUS_META[assessResult.status];
@@ -33,12 +36,19 @@ export function Result() {
   const isCall108 = assessResult.action === "call_108";
   const message = isHindi ? assessResult.message_hindi : assessResult.message_english;
   const dash = "—";
+  const barTone = assessResult.status;
+  const symptomPercent = Math.min(100, assessResult.symptom_score);
+  const rednessValue = analyze ? Math.min(100, Math.abs(analyze.redness_delta)) : 0;
+  const borderValue = analyze ? Math.min(100, Math.abs(analyze.border_change)) : 0;
 
   return (
-    <Layout showBack backTo="/">
+    <Layout showBack backTo="/home">
       <div className="space-y-4">
         {/* Status hero */}
         <div className={`rounded-2xl border p-5 ${meta.soft}`}>
+          <p className={`mb-3 text-xs font-bold uppercase tracking-wide opacity-70 ${hiClass}`}>
+            {tr("Today's assessment", "आज का मूल्यांकन")}
+          </p>
           <div className="flex items-center justify-between">
             <StatusBadge status={assessResult.status} />
             <span className="text-right">
@@ -55,7 +65,38 @@ export function Result() {
           </p>
         </div>
 
-        {/* Change detail from /analyze + /assess */}
+        <Card>
+          <p className={`mb-3 text-xs font-bold uppercase tracking-wide text-stone-400 ${hiClass}`}>
+            {tr("What GharSehat compared", "GharSehat ने क्या तुलना की")}
+          </p>
+          <div className="space-y-3">
+            <ProgressBar
+              label={tr("Overall change score", "कुल बदलाव स्कोर")}
+              value={assessResult.change_score}
+              tone={barTone}
+              badge={tr(meta.labelEn, meta.labelHi)}
+            />
+            <ProgressBar
+              label={tr("Redness area", "लालिमा क्षेत्र")}
+              value={rednessValue}
+              tone={rednessValue >= 60 ? "red" : rednessValue >= 30 ? "amber" : "green"}
+              badge={analyze ? `${Math.round(analyze.redness_delta)}%` : tr("Not available", "उपलब्ध नहीं")}
+            />
+            <ProgressBar
+              label={tr("Border spread", "किनारे का फैलाव")}
+              value={borderValue}
+              tone={borderValue >= 60 ? "red" : borderValue >= 30 ? "amber" : "green"}
+              badge={analyze ? `${Math.round(analyze.border_change)}%` : tr("Not available", "उपलब्ध नहीं")}
+            />
+            <ProgressBar
+              label={tr("Symptoms", "लक्षण")}
+              value={symptomPercent}
+              tone={symptomPercent >= 60 ? "red" : symptomPercent >= 30 ? "amber" : "green"}
+              badge={`${assessResult.positive_symptoms.length} / 5`}
+            />
+          </div>
+        </Card>
+
         <Card>
           <p className={`mb-3 text-sm font-semibold text-stone-700 ${hiClass}`}>
             {tr("Detected change", "मापा गया बदलाव")}
@@ -104,17 +145,24 @@ export function Result() {
           </div>
         )}
 
+        {assessResult.status === "amber" && (
+          <InfoBox variant="warning">
+            <span className={hiClass}>
+              {tr(
+                "Some visual change was detected. Watch closely and show this at the next doctor visit.",
+                "कुछ बदलाव दिखा है। ध्यान से निगरानी रखें और अगली डॉक्टर मुलाकात में दिखाएँ।",
+              )}
+            </span>
+          </InfoBox>
+        )}
+
         {/* Green / amber CTA */}
         {!isRed && (
-          <button
-            type="button"
-            onClick={() => navigate("/dressing-guide")}
-            className={`flex w-full items-center justify-center gap-2 rounded-xl bg-brand py-3.5 font-semibold text-white shadow-card active:scale-[0.99] ${hiClass}`}
-          >
+          <CTALink to="/dressing" className={`gap-2 ${hiClass}`}>
             <Bandage className="h-4 w-4" />
             {tr("View Dressing Guide", "ड्रेसिंग गाइड देखें")}
             <ArrowRight className="h-4 w-4" />
-          </button>
+          </CTALink>
         )}
 
         <Disclaimer

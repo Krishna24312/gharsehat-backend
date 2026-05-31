@@ -1,9 +1,11 @@
-import { Camera, CheckCircle2, Circle, ImageUp, Info, Loader2, X } from "lucide-react";
+import { Camera, CheckCircle2, Circle, ImageUp, Loader2, ScanLine, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { analyzePhotos } from "../api";
 import { Card, ErrorState } from "../components/common";
+import { CTAButton } from "../components/CTAButton";
 import { Disclaimer } from "../components/Disclaimer";
+import { InfoBox } from "../components/InfoBox";
 import { Layout } from "../components/Layout";
 import { useCheckIn } from "../context/CheckInContext";
 import { useLanguage } from "../context/LanguageContext";
@@ -151,30 +153,41 @@ export function CheckIn() {
   }
 
   return (
-    <Layout showBack backTo="/">
+    <Layout showBack backTo="/home">
       <div className="space-y-4">
         <div>
           <h1 className={`text-xl font-bold text-stone-800 ${hiClass}`}>
-            {tr("Daily check-in", "रोज़ का चेक-इन")}
+            {tr("Step 1 of 2 — Photos", "चरण 1 / 2 — फोटो")}
           </h1>
           <p className={`mt-1 text-sm text-stone-500 ${hiClass}`}>
             {tr(
-              "Add yesterday's and today's wound photos to compare change.",
-              "बदलाव की तुलना के लिए कल और आज की घाव की फोटो जोड़ें।",
+              "Add yesterday's and today's photos so GharSehat can compare visual change.",
+              "बदलाव की तुलना के लिए कल और आज की फोटो जोड़ें।",
             )}
           </p>
         </div>
 
-        {/* Reference-card reminder */}
-        <div className="flex items-start gap-2 rounded-xl border border-brand/20 bg-brand/5 px-3 py-2.5 text-sm text-stone-700">
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
+        <div className="relative aspect-[4/3] overflow-hidden rounded-2xl bg-stone-900">
+          <span className="absolute left-3 top-3 h-8 w-8 rounded-tl-md border-l-2 border-t-2 border-brand" />
+          <span className="absolute right-3 top-3 h-8 w-8 rounded-tr-md border-r-2 border-t-2 border-brand" />
+          <span className="absolute bottom-3 left-3 h-8 w-8 rounded-bl-md border-b-2 border-l-2 border-brand" />
+          <span className="absolute bottom-3 right-3 h-8 w-8 rounded-br-md border-b-2 border-r-2 border-brand" />
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-brand">
+            <ScanLine className="h-14 w-14" />
+            <p className={`text-xs font-semibold text-white/80 ${hiClass}`}>
+              {tr("Keep the reference card visible", "रेफरेंस कार्ड दिखना चाहिए")}
+            </p>
+          </div>
+        </div>
+
+        <InfoBox>
           <span className={hiClass}>
             {tr(
-              "Place the printed GharSehat reference card next to the wound in every photo.",
-              "हर फोटो में घाव के पास GharSehat रेफरेंस कार्ड रखें।",
+              "GharSehat compares today vs yesterday for colour, redness area, and border change. It does not diagnose.",
+              "GharSehat आज और कल की तुलना रंग, लालिमा क्षेत्र और किनारे के बदलाव के लिए करता है। यह निदान नहीं करता।",
             )}
           </span>
-        </div>
+        </InfoBox>
 
         <PhotoSlot
           step={1}
@@ -230,19 +243,16 @@ export function CheckIn() {
           />
         )}
 
-        <button
-          type="button"
+        <CTAButton
           onClick={handleAnalyze}
           disabled={!bothSelected || loading}
-          className={`flex w-full items-center justify-center gap-2 rounded-xl py-3.5 font-semibold text-white shadow-card transition active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-stone-300 disabled:shadow-none ${
-            bothSelected && !loading ? "bg-brand" : ""
-          } ${hiClass}`}
+          className={`gap-2 ${hiClass}`}
         >
           {loading && <Loader2 className="h-4 w-4 animate-spin" />}
           {loading
             ? tr("Analyzing change…", "बदलाव का विश्लेषण…")
             : tr("Analyze Change", "बदलाव का विश्लेषण करें")}
-        </button>
+        </CTAButton>
 
         {!bothSelected && (
           <p className={`text-center text-xs text-stone-400 ${hiClass}`}>

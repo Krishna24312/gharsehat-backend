@@ -173,7 +173,7 @@ function AlertBody({ view }: { view: AlertView }) {
         </div>
       </Card>
 
-      {/* Doctor portal note (silent update — never "sent"/"reviewed"). */}
+      {/* Doctor portal note (silent update language only). */}
       {(isRed || isAmber) && (
         <div className={`rounded-xl bg-stone-100 px-3 py-2.5 text-center text-sm text-stone-600 ${hiClass}`}>
           {tr("Doctor portal updated for review.", "डॉक्टर पोर्टल समीक्षा के लिए अपडेट किया गया है।")}
