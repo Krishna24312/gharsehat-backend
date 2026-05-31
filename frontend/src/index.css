@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-stone-100 text-stone-800 antialiased;
+}
+
+/* Devanagari text gets a font that renders the script cleanly. */
+.font-hi {
+  font-family: "Noto Sans Devanagari", "Inter", system-ui, sans-serif;
+}
+
+/* Hide scrollbars on the horizontal photo strip while keeping scroll. */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
