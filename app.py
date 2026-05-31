@@ -1,13 +1,16 @@
 """GharSehat backend — Flask app setup, CORS, and route wiring.
 
-Step 1 wires only the health check and the /assess scoring endpoint.
-Image analysis, capture checks, and the doctor portal come later.
+Wires the health check, the /assess scoring endpoint, the doctor portal
+(/patients and /patient/<id>/history), a mock /analyze endpoint, and a
+/capture-check photo-quality endpoint. Real OpenCV wound comparison
+replaces the /analyze mock later.
 """
 
 from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
 
 from assess import AssessmentError, assess
+from capture_check import CaptureCheckError, check_capture_frame
 from data import PATIENTS, get_current_status, get_last_check_in_timestamp
 
 app = Flask(__name__)
@@ -30,6 +33,47 @@ def assess_route() -> Response | tuple[Response, int]:
     try:
         result = assess(payload)
     except AssessmentError as error:
+        return jsonify({"error": error.message}), 400
+    return jsonify(result)
+
+
+@app.route("/analyze", methods=["POST"])
+def analyze() -> Response | tuple[Response, int]:
+    """Mock wound-change analysis from two uploaded photos.
+
+    Expects multipart/form-data with image files `yesterday` and `today`.
+    Returns a fixed change score for the demo — the uploaded bytes are not
+    read, processed, or saved. Real OpenCV comparison replaces this later,
+    at which point the "mock" flag goes away. Reports visual change only,
+    never a diagnosis claim.
+    """
+    if "yesterday" not in request.files or "today" not in request.files:
+        return jsonify({"error": "Both yesterday and today image files are required."}), 400
+    return jsonify(
+        {
+            "change_score": 68,
+            "redness_delta": 23,
+            "border_change": 12,
+            "mock": True,
+            "disclaimer": "This checks visual change between photos only. It is not a medical diagnosis.",
+        }
+    )
+
+
+@app.route("/capture-check", methods=["POST"])
+def capture_check() -> Response | tuple[Response, int]:
+    """Check a live preview frame's lighting and blur before capture.
+
+    Expects multipart/form-data with one image file named `frame`. The frame
+    is analysed in-memory and never saved. Returns a photo-quality verdict
+    only — no diagnosis.
+    """
+    if "frame" not in request.files:
+        return jsonify({"error": "Image frame is required."}), 400
+    image_bytes = request.files["frame"].read()
+    try:
+        result = check_capture_frame(image_bytes)
+    except CaptureCheckError as error:
         return jsonify({"error": error.message}), 400
     return jsonify(result)
 
