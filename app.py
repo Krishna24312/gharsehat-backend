@@ -1,14 +1,16 @@
 """GharSehat backend — Flask app setup, CORS, and route wiring.
 
 Wires the health check, the /assess scoring endpoint, the doctor portal
-(/patients and /patient/<id>/history), and a mock /analyze endpoint.
-Real OpenCV image comparison and /capture-check come later.
+(/patients and /patient/<id>/history), a mock /analyze endpoint, and a
+/capture-check photo-quality endpoint. Real OpenCV wound comparison
+replaces the /analyze mock later.
 """
 
 from flask import Flask, Response, jsonify, request
 from flask_cors import CORS
 
 from assess import AssessmentError, assess
+from capture_check import CaptureCheckError, check_capture_frame
 from data import PATIENTS, get_current_status, get_last_check_in_timestamp
 
 app = Flask(__name__)
@@ -56,6 +58,24 @@ def analyze() -> Response | tuple[Response, int]:
             "disclaimer": "This detects visual change only, not infection.",
         }
     )
+
+
+@app.route("/capture-check", methods=["POST"])
+def capture_check() -> Response | tuple[Response, int]:
+    """Check a live preview frame's lighting and blur before capture.
+
+    Expects multipart/form-data with one image file named `frame`. The frame
+    is analysed in-memory and never saved. Returns a photo-quality verdict
+    only — no diagnosis.
+    """
+    if "frame" not in request.files:
+        return jsonify({"error": "Image frame is required."}), 400
+    image_bytes = request.files["frame"].read()
+    try:
+        result = check_capture_frame(image_bytes)
+    except CaptureCheckError as error:
+        return jsonify({"error": error.message}), 400
+    return jsonify(result)
 
 
 @app.route("/patients", methods=["GET"])
