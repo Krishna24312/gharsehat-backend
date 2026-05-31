@@ -6,24 +6,50 @@ Wires the health check, the /assess scoring endpoint, the doctor portal
 replaces the /analyze mock later.
 """
 
-from flask import Flask, Response, jsonify, request
+import os
+
+from flask import Flask, Response, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from assess import AssessmentError, assess
 from capture_check import CaptureCheckError, check_capture_frame
 from data import PATIENTS, get_current_status, get_last_check_in_timestamp
 
-app = Flask(__name__)
+# static_folder=None disables Flask's built-in /static route; the SPA fallback
+# below serves the built frontend (including its assets) instead.
+app = Flask(__name__, static_folder=None)
 CORS(app)  # Allow all origins — hackathon prototype.
 
 # Triage ordering for the doctor portal: red first, then amber, then green.
 STATUS_ORDER: dict[str, int] = {"red": 0, "amber": 1, "green": 2}
 
+# Built React frontend, produced by `npm run build` inside frontend/.
+DIST_DIR = os.path.join(os.path.dirname(__file__), "frontend", "dist")
+INDEX_FILE = os.path.join(DIST_DIR, "index.html")
+
+
+def _serve_frontend() -> Response:
+    """Serve the built SPA's index.html, or a JSON hint if it isn't built."""
+    if os.path.exists(INDEX_FILE):
+        return send_from_directory(DIST_DIR, "index.html")
+    return jsonify(
+        {
+            "message": "GharSehat backend running",
+            "frontend": "not built — run npm run build in frontend/",
+        }
+    )
+
+
+@app.route("/health", methods=["GET"])
+def health() -> Response:
+    """Backend liveness check."""
+    return jsonify({"message": "GharSehat backend running"})
+
 
 @app.route("/", methods=["GET"])
-def health() -> Response:
-    """Simple liveness check."""
-    return jsonify({"message": "GharSehat backend running"})
+def index() -> Response:
+    """Serve the built frontend at the root, or a JSON fallback if unbuilt."""
+    return _serve_frontend()
 
 
 @app.route("/assess", methods=["POST"])
@@ -123,6 +149,18 @@ def patient_history(patient_id: str) -> Response | tuple[Response, int]:
             "history": patient["history"],
         }
     )
+
+
+# SPA fallback — declared after all API routes so they keep priority (Flask
+# also ranks specific rules above this catch-all). Serves a real built asset
+# when the path matches one, otherwise the SPA entry point.
+@app.route("/<path:path>", methods=["GET"])
+def spa_fallback(path: str) -> Response:
+    """Serve a static asset from the build, else fall back to index.html."""
+    asset_path = os.path.join(DIST_DIR, path)
+    if os.path.isfile(asset_path):
+        return send_from_directory(DIST_DIR, path)
+    return _serve_frontend()
 
 
 if __name__ == "__main__":
