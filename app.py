@@ -1,7 +1,8 @@
 """GharSehat backend — Flask app setup, CORS, and route wiring.
 
-Step 1 wires only the health check and the /assess scoring endpoint.
-Image analysis, capture checks, and the doctor portal come later.
+Wires the health check, the /assess scoring endpoint, the doctor portal
+(/patients and /patient/<id>/history), and a mock /analyze endpoint.
+Real OpenCV image comparison and /capture-check come later.
 """
 
 from flask import Flask, Response, jsonify, request
@@ -32,6 +33,29 @@ def assess_route() -> Response | tuple[Response, int]:
     except AssessmentError as error:
         return jsonify({"error": error.message}), 400
     return jsonify(result)
+
+
+@app.route("/analyze", methods=["POST"])
+def analyze() -> Response | tuple[Response, int]:
+    """Mock wound-change analysis from two uploaded photos.
+
+    Expects multipart/form-data with image files `yesterday` and `today`.
+    Returns a fixed change score for the demo — the uploaded bytes are not
+    read, processed, or saved. Real OpenCV comparison replaces this later,
+    at which point the "mock" flag goes away. Reports visual change only,
+    never infection.
+    """
+    if "yesterday" not in request.files or "today" not in request.files:
+        return jsonify({"error": "Both yesterday and today image files are required."}), 400
+    return jsonify(
+        {
+            "change_score": 68,
+            "redness_delta": 23,
+            "border_change": 12,
+            "mock": True,
+            "disclaimer": "This detects visual change only, not infection.",
+        }
+    )
 
 
 @app.route("/patients", methods=["GET"])
