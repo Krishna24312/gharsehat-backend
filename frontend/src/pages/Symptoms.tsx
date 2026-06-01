@@ -104,6 +104,10 @@ export function Symptoms() {
           action: result.action,
           rednessDelta: analyze?.redness_delta,
           borderChange: analyze?.border_change,
+          darkAreaDelta: analyze?.dark_area_delta,
+          yellowAreaDelta: analyze?.yellow_area_delta,
+          woundAreaDelta: analyze?.wound_area_delta,
+          combinedBorderChange: analyze?.combined_border_change,
         })
           .then(() => setCheckinSync("success"))
           .catch(() => setCheckinSync("failed"));

@@ -186,7 +186,7 @@ def _history_entry_from_checkin(checkin: dict, display_date: str) -> dict[str, o
     """
     symptoms = checkin.get("symptoms") or {}
     symptom_score = sum(weight for name, weight in SYMPTOM_WEIGHTS.items() if symptoms.get(name))
-    return {
+    entry = {
         "date": display_date,
         # photo_url stays as the today/current photo for backwards compatibility.
         "photo_url": checkin.get("today_photo_url"),
@@ -195,6 +195,7 @@ def _history_entry_from_checkin(checkin: dict, display_date: str) -> dict[str, o
         "yesterday_photo_url": checkin.get("yesterday_photo_url"),
         "checkin_id": checkin.get("checkin_id"),
         "change_score": checkin.get("change_score"),
+        "redness_delta": checkin.get("redness_delta"),
         "symptoms": symptoms,
         "symptom_score": symptom_score,
         "final_score": checkin.get("final_score"),
@@ -202,6 +203,11 @@ def _history_entry_from_checkin(checkin: dict, display_date: str) -> dict[str, o
         "created_at": checkin.get("created_at"),
         "submitted": True,
     }
+    # Optional advanced visual metrics, only when they were saved.
+    for key in ("dark_area_delta", "yellow_area_delta", "wound_area_delta", "combined_border_change"):
+        if checkin.get(key) is not None:
+            entry[key] = checkin[key]
+    return entry
 
 
 @app.route("/patient/<patient_id>/history", methods=["GET"])
@@ -279,6 +285,14 @@ def submit_checkin() -> Response | tuple[Response, int]:
     action = form.get("action")
     yesterday_file = request.files.get("yesterday")
 
+    # Optional advanced /analyze-real visual metrics. Only stored when present
+    # so older / mock-analyze check-ins stay backward compatible.
+    advanced_metrics = {
+        key: parse_float(form.get(key))
+        for key in ("dark_area_delta", "yellow_area_delta", "wound_area_delta", "combined_border_change")
+        if parse_float(form.get(key)) is not None
+    }
+
     try:
         today_photo_url = save_uploaded_image(today_file, patient_id)
         yesterday_photo_url = None
@@ -303,6 +317,7 @@ def submit_checkin() -> Response | tuple[Response, int]:
         "action": action,
         "symptoms": symptoms,
         "submitted": True,
+        **advanced_metrics,
     }
     append_checkin(entry)
 

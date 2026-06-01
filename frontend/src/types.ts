@@ -40,6 +40,12 @@ export interface AnalyzeResponse {
   message?: string;
   mock?: boolean;
   debug?: Record<string, unknown>;
+  // Advanced non-diagnostic visual metrics, only from /analyze-real. Optional
+  // so the mock /analyze flow (which omits them) stays compatible.
+  dark_area_delta?: number;
+  yellow_area_delta?: number;
+  wound_area_delta?: number;
+  combined_border_change?: number;
 }
 
 export type CaptureCheckStatus = "good" | "bad_lighting" | "blurry";
@@ -111,6 +117,13 @@ export interface HistoryEntry {
   checkin_id?: string;
   today_photo_url?: string | null;
   yesterday_photo_url?: string | null;
+  // Advanced non-diagnostic visual metrics, only on submitted check-ins that
+  // were analysed with /analyze-real. All optional for backward compatibility.
+  redness_delta?: number;
+  dark_area_delta?: number;
+  yellow_area_delta?: number;
+  wound_area_delta?: number;
+  combined_border_change?: number;
 }
 
 // GET /patient/<id>/history response.
