@@ -29,13 +29,17 @@ export const EMPTY_SYMPTOMS: Symptoms = {
   increasing_pain: false,
 };
 
-// POST /analyze response. `message` is optional and intentionally NOT shown.
+// POST /analyze (or /analyze-real) response. `message` is optional and
+// intentionally NOT shown. `mock` and `debug` are optional; `debug` (only sent
+// by /analyze-real) is intentionally ignored by the UI.
 export interface AnalyzeResponse {
   change_score: number;
   redness_delta: number;
   border_change: number;
   disclaimer?: string;
   message?: string;
+  mock?: boolean;
+  debug?: Record<string, unknown>;
 }
 
 export type CaptureCheckStatus = "good" | "bad_lighting" | "blurry";
@@ -63,6 +67,8 @@ export interface CaptureCheckResponse {
   // covers (drives the verdict). Exposed for transparency; may be absent.
   skin_fill?: number;
   center_fill?: number;
+  blob_texture?: number;
+  blob_short_span?: number;
 }
 
 // POST /assess response.

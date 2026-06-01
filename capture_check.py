@@ -29,26 +29,38 @@ FRAMING_MIN_FILL = 0.08
 # Max distance of the limb's centroid from the guide centre (fraction of the
 # guide, per axis) before we call it off-centre.
 FRAMING_OFF_CENTER = 0.22
+# Min internal texture (variance of the Laplacian inside the blob) for the
+# largest skin blob to count as a real limb. A warm wall that reads as skin is
+# near-featureless and falls below this; a limb (skin texture, wound, contours)
+# is well above it. This is what stops a warm room from reading as "Distance OK".
+FLAT_BLOB_TEXTURE = 14.0
 
 # Distance proxy thresholds (strict fill heuristic). True distance needs a scale
 # reference we don't have, so this is NOT exact — it only asks "does the limb
-# dominate the centre of the guide?". We require the largest skin blob to cover
-# most of the guide's CENTRE core, so a small/distant subject reads as too_far
-# even when stray skin-tone is present elsewhere. Known limits: warm-toned rooms
-# can still read as skin, and a close face passes — accepted on purpose. Only
-# ever warns "too_far"; a frame-filling close-up can't be told from "too close"
-# without a scale reference, so we never say "move back". Not ML, not diagnosis.
+# dominate the centre of the guide?". We require a close-up sized blob, not just
+# a long skinny arm crossing the frame, so distant hands/forearms stay "too_far".
+# Known limits: warm-toned rooms can still read as skin, and a close face passes
+# — accepted on purpose. Only ever warns "too_far"; a frame-filling close-up
+# can't be told from "too close" without a scale reference, so we never say
+# "move back". Not ML, not diagnosis.
 SKIN_CENTER_FRAC = 0.5   # centre core = central 50% of the guide box
-SKIN_CENTER_MIN = 0.10   # core barely covered -> nothing centred -> "unknown"
-SKIN_CENTER_GOOD = 0.55  # core mostly covered (with enough overall fill) -> "good"
-SKIN_MIN_FILL = 0.25     # largest blob must also fill this much of the whole guide
-# Broad skin-colour ranges. We require BOTH a YCrCb and an HSV match to cut down
-# on skin-toned decor (wood, beige fabric). Crude on purpose, not ML.
+# Any textured skin blob at least this big means a subject (hand/arm) is in the
+# guide. Present-but-not-close-up then reads as "too_far" (never "unknown").
+SUBJECT_MIN_FILL = 0.05
+SKIN_CENTER_GOOD = 0.72  # core strongly covered (with enough overall fill) -> "good"
+SKIN_MIN_FILL = 0.42     # largest blob must fill this much of the whole guide
+# A far arm can be wide but very thin. Require the skin blob's shorter bounding
+# span to occupy a meaningful share of the guide before calling distance good.
+BLOB_MIN_SHORT_SPAN = 0.42
+# Broad skin-colour ranges. We require BOTH a YCrCb and an HSV match. The HSV
+# saturation floor (50) is the key lever that stops a pale cream/off-white wall
+# from reading as skin: real skin is more saturated than a painted wall. Crude
+# on purpose, not ML.
 SKIN_YCRCB_LOW = (0, 133, 77)
 SKIN_YCRCB_HIGH = (255, 180, 135)
-SKIN_HSV_LOW = (0, 30, 60)
+SKIN_HSV_LOW = (0, 50, 60)
 SKIN_HSV_HIGH = (25, 180, 255)
-SKIN_HSV_WRAP_LOW = (160, 30, 60)
+SKIN_HSV_WRAP_LOW = (160, 50, 60)
 SKIN_HSV_WRAP_HIGH = (180, 180, 255)
 
 
@@ -110,6 +122,8 @@ def check_capture_frame(image_bytes: bytes) -> dict[str, object]:
     guide_pixels = guide_height * guide_width
     skin_fill = 0.0
     center_fill = 0.0
+    blob_texture = 0.0
+    blob_short_span = 0.0
     if guide_pixels == 0:
         framing_status = "guide_only"
         framing_message = "Keep the wound inside the on-screen guide."
@@ -134,9 +148,24 @@ def check_capture_frame(image_bytes: bytes) -> dict[str, object]:
         else:
             largest_blob, largest_label = 0, 0
         skin_fill = round(largest_blob / guide_pixels, 3)
+        if largest_blob:
+            blob_width_frac = float(stats[largest_label, cv2.CC_STAT_WIDTH]) / guide_width
+            blob_height_frac = float(stats[largest_label, cv2.CC_STAT_HEIGHT]) / guide_height
+            blob_short_span = round(min(blob_width_frac, blob_height_frac), 3)
+
+        # Is the largest skin blob a REAL limb, or a flat surface (a warm wall
+        # that reads as skin)? A limb has internal texture; a wall is uniform.
+        blob_mask = labels == largest_label if largest_blob else np.zeros_like(labels, dtype=bool)
+        guide_gray = gray[y0:y1, x0:x1]
+        blob_texture = (
+            round(float(cv2.Laplacian(guide_gray, cv2.CV_64F)[blob_mask].var()), 1) if largest_blob else 0.0
+        )
+        # A limb big enough to judge framing/centring vs. just any subject present.
+        limb_present = skin_fill >= FRAMING_MIN_FILL and blob_texture >= FLAT_BLOB_TEXTURE
+        subject_present = skin_fill >= SUBJECT_MIN_FILL and blob_texture >= FLAT_BLOB_TEXTURE
 
         # Framing: is the limb roughly centred in the guide? Judge by centroid.
-        if skin_fill < FRAMING_MIN_FILL:
+        if not limb_present:
             framing_status = "guide_only"
             framing_message = "Keep the wound inside the on-screen guide."
         else:
@@ -149,19 +178,26 @@ def check_capture_frame(image_bytes: bytes) -> dict[str, object]:
                 framing_status = "off_center"
                 framing_message = "Move the wound toward the centre of the guide."
 
-        # Distance (strict fill): does the limb dominate the guide's CENTRE core?
-        # A small/distant subject leaves the centre mostly empty -> too_far.
-        blob_mask = labels == largest_label if largest_blob else np.zeros_like(labels, dtype=bool)
+        # Distance (strict close-up). Only a close-up where the wound area really
+        # FILLS the guide is "good": the centre core must be strongly covered, the
+        # blob must fill enough of the whole guide, AND its short bounding span
+        # must be wide enough (a long thin arm crossing the guide fails this).
+        # Anything else with a subject present is "too_far" — never "unknown".
+        # "unknown" is reserved for no detectable subject (or a flat wall).
         margin = (1.0 - SKIN_CENTER_FRAC) / 2.0
         cy0, cy1 = int(guide_height * margin), int(guide_height * (1.0 - margin))
         cx0, cx1 = int(guide_width * margin), int(guide_width * (1.0 - margin))
         core = blob_mask[cy0:cy1, cx0:cx1]
         center_fill = round(float(core.mean()), 3) if core.size else 0.0
 
-        if center_fill < SKIN_CENTER_MIN:
+        if not subject_present:
             distance_status = "unknown"
-            distance_message = "Place the limb in the centre of the guide."
-        elif center_fill >= SKIN_CENTER_GOOD and skin_fill >= SKIN_MIN_FILL:
+            distance_message = "Point the camera at the wound area."
+        elif (
+            center_fill >= SKIN_CENTER_GOOD
+            and skin_fill >= SKIN_MIN_FILL
+            and blob_short_span >= BLOB_MIN_SHORT_SPAN
+        ):
             distance_status = "good"
             distance_message = "Distance looks good."
         else:
@@ -194,5 +230,7 @@ def check_capture_frame(image_bytes: bytes) -> dict[str, object]:
         "distance_message": distance_message,
         "skin_fill": skin_fill,
         "center_fill": center_fill,
+        "blob_texture": blob_texture,
+        "blob_short_span": blob_short_span,
         "message": message,
     }

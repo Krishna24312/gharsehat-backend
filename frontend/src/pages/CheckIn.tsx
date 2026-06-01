@@ -18,7 +18,8 @@ import {
   type ChangeEvent,
 } from "react";
 import { useNavigate } from "react-router-dom";
-import { analyzePhotos, captureCheck } from "../api";
+import { analyzePhotos, captureCheck, getAnalysisMode, resolveAnalyzeEndpoint, setAnalysisMode } from "../api";
+import type { AnalysisMode } from "../config";
 import { Card, ErrorState } from "../components/common";
 import { CTAButton } from "../components/CTAButton";
 import { Disclaimer } from "../components/Disclaimer";
@@ -232,6 +233,17 @@ export function CheckIn() {
   const [quality, setQuality] = useState<CaptureCheckResponse | null>(null);
   const [qualityError, setQualityError] = useState<string | null>(null);
 
+  // Demo/dev setting: which analyze endpoint the check-in uses. Persisted in
+  // localStorage so it survives reloads during a demo. Default stays /analyze.
+  const [analysisMode, setAnalysisModeState] = useState<AnalysisMode>(
+    () => getAnalysisMode() ?? (resolveAnalyzeEndpoint() === "/analyze-real" ? "real" : "mock"),
+  );
+
+  function chooseAnalysisMode(next: AnalysisMode) {
+    setAnalysisMode(next);
+    setAnalysisModeState(next);
+  }
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -262,8 +274,12 @@ export function CheckIn() {
   // preview, not a bottom chip. `frame` holds the border/glow classes; the dark
   // vignette (the huge spread shadow) is kept in every state.
   const VIGNETTE = "shadow-[0_0_0_9999px_rgba(0,0,0,0.18)]";
+  // Slight blur must NOT hide distance feedback — only treat the frame as
+  // unusable when lighting is bad. The backend itself returns "unknown" when it
+  // genuinely can't find a subject, so we trust distance_status otherwise.
+  const canTrustDistance = Boolean(quality && lightingOk);
   const distanceGuide: { frame: string; pill: string } =
-    !quality || distanceStatus === "unknown"
+    !canTrustDistance || distanceStatus === "unknown"
       ? {
           frame: `border-white/80 ${VIGNETTE}`,
           pill: tr("Place wound inside the frame", "घाव को फ्रेम के अंदर रखें"),
@@ -666,6 +682,40 @@ export function CheckIn() {
             retryLabel={tr("Try again", "फिर कोशिश करें")}
           />
         )}
+
+        {/* Demo/dev setting — which analyze engine to call. Not a clinical control. */}
+        <div className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-stone-400">
+              {tr("Analysis engine", "विश्लेषण इंजन")}
+            </span>
+            <div className="flex rounded-md bg-stone-200/70 p-0.5">
+              <button
+                type="button"
+                onClick={() => chooseAnalysisMode("mock")}
+                className={`rounded px-2 py-1 text-[11px] font-bold transition ${
+                  analysisMode === "mock" ? "bg-white text-stone-700 shadow-sm" : "text-stone-500"
+                } ${hiClass}`}
+              >
+                {tr("Demo", "डेमो")}
+              </button>
+              <button
+                type="button"
+                onClick={() => chooseAnalysisMode("real")}
+                className={`rounded px-2 py-1 text-[11px] font-bold transition ${
+                  analysisMode === "real" ? "bg-white text-stone-700 shadow-sm" : "text-stone-500"
+                } ${hiClass}`}
+              >
+                {tr("Real OpenCV", "रियल OpenCV")}
+              </button>
+            </div>
+          </div>
+          <p className={`mt-1 text-[11px] text-stone-400 ${hiClass}`}>
+            {analysisMode === "real"
+              ? tr("Real OpenCV analysis selected", "रियल OpenCV विश्लेषण चुना गया")
+              : tr("Demo analysis selected", "डेमो विश्लेषण चुना गया")}
+          </p>
+        </div>
 
         <CTAButton
           onClick={handleAnalyze}
