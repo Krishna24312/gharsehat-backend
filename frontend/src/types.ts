@@ -83,6 +83,16 @@ export interface AssessResponse {
   action: AssessAction;
   disclaimer_hindi: string;
   disclaimer_english: string;
+  // Patient-friendly guidance (added by the backend; all optional for
+  // backward compatibility — the Result screen renders without them). These
+  // are English-only enrichment; the bilingual message_* fields stay canonical.
+  patient_title?: string;
+  patient_summary?: string;
+  reason_summary?: string[];
+  next_step?: string;
+  care_level_label?: string;
+  care_level_position?: number;
+  visual_change_label?: string;
 }
 
 // One day's check-in inside GET /patient/<id>/history.
