@@ -11,9 +11,11 @@ import {
 } from "./config";
 import type {
   AnalyzeResponse,
+  AssessAction,
   AssessResponse,
   CaptureCheckResponse,
   PatientHistory,
+  Status,
   Symptoms,
 } from "./types";
 
@@ -112,4 +114,47 @@ export async function assess(
     body: JSON.stringify({ change_score: changeScore, symptoms }),
   });
   return asJson<AssessResponse>(response);
+}
+
+/** Fields needed to persist a completed check-in via POST /checkins. */
+export interface CheckinSubmission {
+  patientId: string;
+  today: File;
+  yesterday?: File | null;
+  changeScore: number;
+  finalScore: number;
+  status: Status;
+  symptoms: Symptoms;
+  action?: AssessAction;
+  rednessDelta?: number;
+  borderChange?: number;
+}
+
+/**
+ * POST /checkins — persist the completed check-in (multipart) so the doctor
+ * portal updates live. Best-effort: callers should fire-and-forget and NOT
+ * block the user flow on this. Matches the backend's required fields
+ * (patient_id, today, change_score, final_score, status, symptoms) plus the
+ * optional ones. Does not diagnose; sends the caregiver's own scores/status.
+ */
+export async function submitCheckin(input: CheckinSubmission): Promise<void> {
+  const form = new FormData();
+  form.append("patient_id", input.patientId);
+  form.append("today", input.today);
+  if (input.yesterday) form.append("yesterday", input.yesterday);
+  form.append("change_score", String(input.changeScore));
+  form.append("final_score", String(input.finalScore));
+  form.append("status", input.status);
+  form.append("symptoms", JSON.stringify(input.symptoms));
+  if (input.action) form.append("action", input.action);
+  if (input.rednessDelta != null) form.append("redness_delta", String(input.rednessDelta));
+  if (input.borderChange != null) form.append("border_change", String(input.borderChange));
+
+  const response = await fetch(`${API_BASE_URL}/checkins`, {
+    method: "POST",
+    body: form,
+  });
+  if (!response.ok) {
+    throw new ApiError(`Check-in save failed (${response.status})`, response.status);
+  }
 }

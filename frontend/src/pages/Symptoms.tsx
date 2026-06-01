@@ -1,7 +1,8 @@
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { assess } from "../api";
+import { assess, submitCheckin } from "../api";
+import { DEMO_PATIENT_ID } from "../config";
 import { Card, ErrorState } from "../components/common";
 import { CTAButton } from "../components/CTAButton";
 import { Disclaimer } from "../components/Disclaimer";
@@ -53,7 +54,8 @@ const QUESTIONS: { key: SymptomKey; en: string; hi: string; hintEn: string; hint
 export function Symptoms() {
   const navigate = useNavigate();
   const { tr, hiClass } = useLanguage();
-  const { changeScore, symptoms, setSymptoms, setAssessResult } = useCheckIn();
+  const { changeScore, symptoms, setSymptoms, setAssessResult, todayPhoto, yesterdayPhoto, analyze } =
+    useCheckIn();
 
   const [answers, setAnswers] = useState<SymptomsType>({ ...EMPTY_SYMPTOMS, ...symptoms });
   const [loading, setLoading] = useState(false);
@@ -76,6 +78,27 @@ export function Symptoms() {
       setSymptoms(answers);
       const result = await assess(changeScore, answers);
       setAssessResult(result);
+
+      // Best-effort: persist the completed check-in so the doctor portal updates
+      // live. Fire-and-forget — a failure here must never block the result
+      // screen, and we only send if we actually have today's photo.
+      if (todayPhoto) {
+        void submitCheckin({
+          patientId: DEMO_PATIENT_ID,
+          today: todayPhoto,
+          yesterday: yesterdayPhoto,
+          changeScore,
+          finalScore: result.final_score,
+          status: result.status,
+          symptoms: answers,
+          action: result.action,
+          rednessDelta: analyze?.redness_delta,
+          borderChange: analyze?.border_change,
+        }).catch(() => {
+          // Doctor-portal sync is best-effort; ignore failures.
+        });
+      }
+
       navigate("/result");
     } catch {
       setError(
