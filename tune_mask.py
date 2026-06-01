@@ -1,9 +1,13 @@
-"""Local helper to tune the redness-mask saturation threshold.
+"""Local helper to inspect the redness-mask thresholds used by /analyze-real.
 
-Sweeps S = 60, 80, 100, 120 over a baseline/today image pair and prints the
-resulting areas and change scores, so you can pick a threshold that separates
-the red marker from normal skin. This script is standalone: it does not affect
-app runtime, save images, or touch the frontend.
+Sweeps S = 60, 80, 100, 120 over a baseline/today pair on the SAME central ROI
+that /analyze-real uses, showing the raw (unclamped) growth direction, the
+clamped deltas, and which thresholds /analyze-real would actually keep. It then
+prints the final growth-direction-filtered median score by calling the real
+analyze_pair, so what you see here matches the endpoint.
+
+This script is standalone: it does not affect app runtime, save images, or
+touch the frontend.
 
 Usage:
     python tune_mask.py test_images/baseline.jpg test_images/today.jpg
@@ -12,25 +16,27 @@ Usage:
 import sys
 
 from analyze import (
-    MIN_DENOMINATOR,
-    bounding_box_area,
-    clamp,
-    red_area,
-    redness_mask,
+    AnalyzeError,
+    SATURATION_THRESHOLDS,
+    analyze_pair,
+    central_roi,
+    decode_image,
     resize_to_width,
+    score_at_threshold,
 )
 
-import cv2
+# 60 is included (below /analyze-real's set) to show the low-saturation noise
+# that the growth-direction filter is designed to reject.
+SWEEP_THRESHOLDS = [60, 80, 100, 120]
 
-SATURATION_THRESHOLDS = [60, 80, 100, 120]
 
-
-def _load(path: str) -> "cv2.Mat":
-    image = cv2.imread(path, cv2.IMREAD_COLOR)
-    if image is None:
-        print(f"Error: could not read '{path}'. Use a JPG or PNG path that exists.")
+def _load_bytes(path: str) -> bytes:
+    try:
+        with open(path, "rb") as handle:
+            return handle.read()
+    except OSError as error:
+        print(f"Error: could not read '{path}': {error}")
         sys.exit(1)
-    return resize_to_width(image)
 
 
 def main() -> None:
@@ -38,31 +44,48 @@ def main() -> None:
         print("Usage: python tune_mask.py <baseline_image> <today_image>")
         sys.exit(1)
 
-    yesterday = _load(sys.argv[1])
-    today = _load(sys.argv[2])
+    yesterday_bytes = _load_bytes(sys.argv[1])
+    today_bytes = _load_bytes(sys.argv[2])
 
-    header = f"{'S':>4} | {'yest_red':>9} | {'today_red':>9} | {'redness_delta':>13} | {'border_change':>13} | {'change_score':>12}"
+    try:
+        yesterday = central_roi(resize_to_width(decode_image(yesterday_bytes)))
+        today = central_roi(resize_to_width(decode_image(today_bytes)))
+    except AnalyzeError as error:
+        print(f"Error: {error.message}")
+        sys.exit(1)
+
+    print("ROI: central 85% | /analyze-real thresholds:", SATURATION_THRESHOLDS)
+    header = (
+        f"{'S':>4} | {'yest_red':>9} | {'today_red':>9} | {'raw_delta':>10} | "
+        f"{'redness':>8} | {'border':>8} | {'change':>8} | {'used_by_/analyze-real':>22}"
+    )
     print(header)
     print("-" * len(header))
 
-    for saturation in SATURATION_THRESHOLDS:
-        y_mask = redness_mask(yesterday, saturation_min=saturation)
-        t_mask = redness_mask(today, saturation_min=saturation)
-
-        y_red = red_area(y_mask)
-        t_red = red_area(t_mask)
-        redness_delta = ((t_red - y_red) / max(y_red, MIN_DENOMINATOR)) * 100
-
-        y_bbox = bounding_box_area(y_mask)
-        t_bbox = bounding_box_area(t_mask)
-        border_change = ((t_bbox - y_bbox) / max(y_bbox, MIN_DENOMINATOR)) * 100
-
-        change_score = max(redness_delta, border_change)
-
+    for saturation in SWEEP_THRESHOLDS:
+        row = score_at_threshold(yesterday, today, saturation)
+        # /analyze-real only runs its own thresholds AND only keeps growth-positive ones.
+        used = saturation in SATURATION_THRESHOLDS and row["used_for_score"]
+        if used:
+            used_label = "yes"
+        elif saturation not in SATURATION_THRESHOLDS:
+            used_label = "no (not in S set)"
+        else:
+            used_label = f"no ({row['excluded_reason']})"
         print(
-            f"{saturation:>4} | {y_red:>9} | {t_red:>9} | "
-            f"{clamp(redness_delta):>13.1f} | {clamp(border_change):>13.1f} | {clamp(change_score):>12.1f}"
+            f"{saturation:>4} | {row['yesterday_red_area']:>9} | {row['today_red_area']:>9} | "
+            f"{row['raw_redness_delta']:>10.2f} | {row['redness_delta']:>8.2f} | "
+            f"{row['border_change']:>8.2f} | {row['change_score']:>8.2f} | {used_label:>22}"
         )
+
+    # Authoritative final score — exactly what /analyze-real returns.
+    result = analyze_pair(yesterday_bytes, today_bytes)
+    debug = result["debug"]
+    print()
+    print(f"valid (growth-positive) thresholds: {debug['valid_thresholds']}")
+    print(f"selected threshold (for shown deltas): {debug['selected_threshold']}")
+    print(f"FINAL growth-filtered median change_score: {result['change_score']}")
+    print(f"note: {debug['note']}")
 
 
 if __name__ == "__main__":
