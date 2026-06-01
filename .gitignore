@@ -21,4 +21,7 @@ __pycache__/
 # Logs
 *.log
 
+# Demo runtime data (caregiver uploads + submitted check-ins)
 test_images/
+uploads/
+checkins.json
