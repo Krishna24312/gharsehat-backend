@@ -2,7 +2,7 @@
 
 **A computer-vision-powered burn wound recovery companion for Indian home caregivers — it helps surface day-to-day visual changes in wound photos and prioritizes cases for doctor review.**
 
-Built for a 2-day national student hackathon.
+Built for techspire hackathon.
 
 > ⚠️ **GharSehat detects measurable *visual change*, never a diagnosis.** Every output describes change only, such as *"redness area increased"* or *"visual change detected."* It never claims infection, necrosis, pus, slough, wound depth, or any medical condition. It is **not a medical diagnosis** and is no substitute for a doctor.
 
