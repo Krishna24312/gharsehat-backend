@@ -27,8 +27,8 @@ export function RoleSelect() {
 
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-5 pb-10 pt-8 sm:px-8">
         <section className="mx-auto max-w-2xl text-center sm:mx-0 sm:text-left">
-          <p className="mb-3 inline-flex rounded-full bg-white px-3 py-1 text-xs font-bold text-brand shadow-card ring-1 ring-rose-100">
-            Role gateway
+          <p className="mb-3 text-xs font-bold uppercase tracking-wide text-stone-500">
+            Welcome to GharSehat
           </p>
           <h1 className="text-3xl font-extrabold tracking-tight text-stone-900 sm:text-4xl">
             Recovering from a burn at home?
@@ -40,7 +40,7 @@ export function RoleSelect() {
           <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1.5 shadow-card">
             <ShieldCheck className="h-4 w-4 shrink-0 text-brand" />
             <span className="text-xs text-stone-500">
-              Tracks visual change only. Not a medical diagnosis.
+              Tracks visual change between photos.
             </span>
           </div>
         </section>
@@ -54,10 +54,10 @@ export function RoleSelect() {
               to="/home"
               tone="primary"
               icon={<HeartPulse className="h-6 w-6" />}
-              eyebrow="Recommended"
-              title="Caregiver / Patient"
+              eyebrow="At home"
+              title="Patient"
               subtitle="Daily check-in, symptoms, dressing guide, progress"
-              cta="Continue as caregiver"
+              cta="Continue as patient"
             />
             <RoleCard
               to="/doctor"
@@ -92,7 +92,7 @@ function RoleCard({
   to: string;
   tone: "primary" | "neutral";
   icon: ReactNode;
-  eyebrow: string;
+  eyebrow?: string;
   title: string;
   subtitle: string;
   cta: string;
@@ -115,15 +115,11 @@ function RoleCard({
         >
           {icon}
         </span>
-        <span
-          className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
-            isPrimary
-              ? "bg-brand/10 text-brand"
-              : "border border-stone-200 bg-stone-50 text-stone-500"
-          }`}
-        >
-          {eyebrow}
-        </span>
+        {eyebrow && (
+          <span className="rounded-full border border-stone-200 bg-stone-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-stone-500">
+            {eyebrow}
+          </span>
+        )}
       </div>
       <h2 className="mt-5 text-xl font-extrabold text-stone-900">{title}</h2>
       <p className="mt-2 text-sm leading-relaxed text-stone-500">{subtitle}</p>

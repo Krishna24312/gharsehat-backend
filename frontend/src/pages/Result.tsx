@@ -3,6 +3,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { Card } from "../components/common";
 import { CTALink } from "../components/CTAButton";
 import { Disclaimer } from "../components/Disclaimer";
+import { DoctorSyncNote } from "../components/DoctorSyncNote";
 import { InfoBox } from "../components/InfoBox";
 import { Layout } from "../components/Layout";
 import { ProgressBar } from "../components/ProgressBar";
@@ -24,7 +25,7 @@ function Metric({ label, value }: { label: string; value: string | number }) {
 export function Result() {
   const navigate = useNavigate();
   const { tr, hiClass, isHindi } = useLanguage();
-  const { assessResult, analyze, hasResult } = useCheckIn();
+  const { assessResult, analyze, hasResult, checkinSync } = useCheckIn();
 
   // Opened directly without a completed check-in → back to Home.
   if (!hasResult || !assessResult) {
@@ -136,12 +137,6 @@ export function Result() {
                 {tr("Show Doctor Today", "आज डॉक्टर को दिखाएँ")}
               </button>
             )}
-            <div className={`rounded-xl bg-stone-100 px-3 py-2.5 text-center text-sm text-stone-600 ${hiClass}`}>
-              {tr(
-                "Doctor portal has been updated for review.",
-                "डॉक्टर पोर्टल समीक्षा के लिए अपडेट किया गया है।",
-              )}
-            </div>
           </div>
         )}
 
@@ -164,6 +159,9 @@ export function Result() {
             <ArrowRight className="h-4 w-4" />
           </CTALink>
         )}
+
+        {/* Truthful doctor-portal sync note — only claims success when /checkins saved. */}
+        <DoctorSyncNote sync={checkinSync} />
 
         <Disclaimer
           english={assessResult.disclaimer_english}

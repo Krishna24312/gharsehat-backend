@@ -2,18 +2,27 @@ import { AlertCircle, Camera, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { BottomNav } from "../components/BottomNav";
 import { CTAButton } from "../components/CTAButton";
+import { ErrorState, Spinner } from "../components/common";
 import { Disclaimer } from "../components/Disclaimer";
 import { LanguageSelector } from "../components/LanguageSelector";
 import { ProgressBar } from "../components/ProgressBar";
 import { useCheckIn } from "../context/CheckInContext";
 import { useLanguage } from "../context/LanguageContext";
+import { STATUS_META } from "../lib/status";
+import { usePatientHistory } from "../hooks/usePatientHistory";
+import type { PatientHistory } from "../types";
 
-const PHOTO_DAYS = [1, 3, 4];
+function capitalize(text: string): string {
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+}
 
 export function Home() {
   const navigate = useNavigate();
   const { tr, hiClass } = useLanguage();
   const { reset } = useCheckIn();
+  // Single source of truth: usePatientHistory defaults to DEMO_PATIENT_ID, the
+  // same id used by /capture, /symptoms, /progress, /alerts, and POST /checkins.
+  const { data, loading, error, reload } = usePatientHistory();
 
   function startCheckIn() {
     reset();
@@ -28,10 +37,12 @@ export function Home() {
             <div className="min-w-0">
               <h1 className="text-2xl font-bold tracking-tight text-brand">GharSehat</h1>
               <p className={`mt-1 text-sm leading-snug text-slate-500 ${hiClass}`}>
-                {tr(
-                  "Namaste, Sunita ji — Day 5 of recovery",
-                  "नमस्ते, सुनीता जी — स्वस्थ होने का दिन 5",
-                )}
+                {data
+                  ? tr(
+                      `Namaste, ${data.name} ji — Day ${data.day_of_recovery} of recovery`,
+                      `नमस्ते, ${data.name} जी — स्वस्थ होने का दिन ${data.day_of_recovery}`,
+                    )
+                  : tr("Namaste — your recovery companion", "नमस्ते — आपका रिकवरी साथी")}
               </p>
             </div>
             <div className="shrink-0">
@@ -52,70 +63,20 @@ export function Home() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-card">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className={`text-xs font-semibold uppercase tracking-wide text-slate-500 ${hiClass}`}>
-                    {tr("Wound", "घाव")}
-                  </p>
-                  <p className={`mt-0.5 text-sm font-semibold text-slate-950 ${hiClass}`}>
-                    {tr(
-                      "Left forearm — 2nd degree burn",
-                      "बायाँ अग्र-बाहु — दूसरी डिग्री का जला",
-                    )}
-                  </p>
-                </div>
-                <span className={`rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800 ${hiClass}`}>
-                  {tr("Monitor", "निगरानी")}
-                </span>
-              </div>
+            {loading && (
+              <Spinner label={tr("Loading your recovery…", "आपकी रिकवरी लोड हो रही है…")} />
+            )}
 
-              <div className="mt-5 space-y-4">
-                <ProgressBar
-                  label={tr("Healing trend", "स्वस्थ होने की प्रवृत्ति")}
-                  value={58}
-                  tone="green"
-                  badge={tr("Improving", "सुधार हो रहा है")}
-                />
-                <ProgressBar
-                  label={tr("Last change", "पिछला बदलाव")}
-                  value={15}
-                  tone="green"
-                  badge={tr("Minimal", "बहुत कम")}
-                />
-              </div>
-            </div>
+            {!loading && error && (
+              <ErrorState
+                title={tr("Couldn't load your details", "आपका विवरण लोड नहीं हो सका")}
+                detail={error}
+                onRetry={reload}
+                retryLabel={tr("Try again", "फिर कोशिश करें")}
+              />
+            )}
 
-            <div>
-              <p className={`mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 ${hiClass}`}>
-                {tr("Photo history", "फोटो इतिहास")}
-              </p>
-
-              <div className="grid grid-cols-4 gap-2">
-                {PHOTO_DAYS.map((day) => (
-                  <div
-                    key={day}
-                    className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg bg-slate-100"
-                  >
-                    <Camera className="h-[18px] w-[18px] text-slate-500" />
-                    <span className={`text-[10px] font-medium text-slate-500 ${hiClass}`}>
-                      {tr("Day", "दिन")} {day}
-                    </span>
-                  </div>
-                ))}
-
-                <button
-                  type="button"
-                  onClick={startCheckIn}
-                  className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-brand/40 text-brand hover:bg-brand/5 active:scale-[0.99]"
-                >
-                  <Plus className="h-[18px] w-[18px]" />
-                  <span className={`text-[10px] font-medium ${hiClass}`}>
-                    {tr("Day", "दिन")} 5
-                  </span>
-                </button>
-              </div>
-            </div>
+            {!loading && !error && data && <HomeBody data={data} onStartCheckIn={startCheckIn} />}
 
             <CTAButton onClick={startCheckIn} className={`mt-2 ${hiClass}`}>
               {tr("Start today's check-in", "आज की जाँच शुरू करें")}
@@ -127,5 +88,97 @@ export function Home() {
         <BottomNav />
       </div>
     </div>
+  );
+}
+
+function HomeBody({
+  data,
+  onStartCheckIn,
+}: {
+  data: PatientHistory;
+  onStartCheckIn: () => void;
+}) {
+  const { tr, hiClass } = useLanguage();
+  const latest = data.history[data.history.length - 1];
+  const first = data.history[0];
+  const meta = STATUS_META[latest.status];
+  const improving = latest.final_score < first.final_score;
+
+  // Most recent backend check-ins as photo-history tiles (day = position in the
+  // timeline). Photos are placeholders since /static images aren't served.
+  const recent = data.history.map((entry, index) => ({ entry, day: index + 1 })).slice(-3);
+
+  return (
+    <>
+      <div className="rounded-xl border border-stone-200 bg-white p-4 shadow-card">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className={`text-xs font-semibold uppercase tracking-wide text-slate-500 ${hiClass}`}>
+              {tr("Wound", "घाव")}
+            </p>
+            <p className="mt-0.5 text-sm font-semibold text-slate-950">
+              {capitalize(data.burn_location)} — {data.burn_type}
+            </p>
+          </div>
+          <span
+            className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${meta.soft}`}
+          >
+            {tr(meta.labelEn, meta.labelHi)}
+          </span>
+        </div>
+
+        <div className="mt-5 space-y-4">
+          <ProgressBar
+            label={tr("Healing trend", "स्वस्थ होने की प्रवृत्ति")}
+            value={latest.final_score}
+            tone={latest.status}
+            badge={
+              improving
+                ? tr("Improving", "सुधार हो रहा है")
+                : tr("Needs attention", "ध्यान चाहिए")
+            }
+          />
+          <ProgressBar
+            label={tr("Last change", "पिछला बदलाव")}
+            value={latest.change_score}
+            tone={latest.status}
+            badge={tr(meta.labelEn, meta.labelHi)}
+          />
+        </div>
+      </div>
+
+      <div>
+        <p className={`mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 ${hiClass}`}>
+          {tr("Photo history", "फोटो इतिहास")}
+        </p>
+
+        <div className="grid grid-cols-4 gap-2">
+          {recent.map(({ entry, day }) => (
+            <div
+              key={entry.date}
+              className="relative flex aspect-square flex-col items-center justify-center gap-1 rounded-lg bg-slate-100"
+              title={tr(meta.labelEn, meta.labelHi)}
+            >
+              <Camera className="h-[18px] w-[18px] text-slate-500" />
+              <span className={`text-[10px] font-medium text-slate-500 ${hiClass}`}>
+                {tr("Day", "दिन")} {day}
+              </span>
+              <span
+                className={`absolute right-1 top-1 h-2 w-2 rounded-full ${STATUS_META[entry.status].dot}`}
+              />
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={onStartCheckIn}
+            className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-brand/40 text-brand hover:bg-brand/5 active:scale-[0.99]"
+          >
+            <Plus className="h-[18px] w-[18px]" />
+            <span className={`text-[10px] font-medium ${hiClass}`}>{tr("New", "नई")}</span>
+          </button>
+        </div>
+      </div>
+    </>
   );
 }

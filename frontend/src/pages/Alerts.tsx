@@ -1,9 +1,11 @@
 import { BellRing, Phone, ShieldCheck, Stethoscope } from "lucide-react";
 import { Card, ErrorState, Spinner } from "../components/common";
 import { Disclaimer } from "../components/Disclaimer";
+import { DoctorSyncNote } from "../components/DoctorSyncNote";
 import { Layout } from "../components/Layout";
 import { StatusBadge } from "../components/StatusBadge";
 import { useCheckIn } from "../context/CheckInContext";
+import type { CheckinSync } from "../context/CheckInContext";
 import { useLanguage } from "../context/LanguageContext";
 import { usePatientHistory } from "../hooks/usePatientHistory";
 import type { AssessAction, Status } from "../types";
@@ -25,7 +27,7 @@ interface AlertView {
 
 export function Alerts() {
   const { tr, hiClass } = useLanguage();
-  const { assessResult } = useCheckIn();
+  const { assessResult, checkinSync } = useCheckIn();
   const { data, loading, error, reload } = usePatientHistory();
 
   // Prefer the check-in just completed this session; otherwise the latest
@@ -74,7 +76,7 @@ export function Alerts() {
           />
         )}
 
-        {view && <AlertBody view={view} />}
+        {view && <AlertBody view={view} sync={checkinSync} />}
 
         <Disclaimer />
       </div>
@@ -82,7 +84,7 @@ export function Alerts() {
   );
 }
 
-function AlertBody({ view }: { view: AlertView }) {
+function AlertBody({ view, sync }: { view: AlertView; sync: CheckinSync }) {
   const { tr, hiClass } = useLanguage();
   const isRed = view.status === "red";
   const isAmber = view.status === "amber";
@@ -173,12 +175,8 @@ function AlertBody({ view }: { view: AlertView }) {
         </div>
       </Card>
 
-      {/* Doctor portal note (silent update language only). */}
-      {(isRed || isAmber) && (
-        <div className={`rounded-xl bg-stone-100 px-3 py-2.5 text-center text-sm text-stone-600 ${hiClass}`}>
-          {tr("Doctor portal updated for review.", "डॉक्टर पोर्टल समीक्षा के लिए अपडेट किया गया है।")}
-        </div>
-      )}
+      {/* Truthful doctor-portal note — only claims success when /checkins saved. */}
+      <DoctorSyncNote sync={sync} />
     </>
   );
 }

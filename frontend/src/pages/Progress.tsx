@@ -11,7 +11,7 @@ import {
   TrendingDown,
   Volume2,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Card, ErrorState, Spinner } from "../components/common";
 import { CTAButton } from "../components/CTAButton";
 import { Disclaimer } from "../components/Disclaimer";
@@ -20,6 +20,7 @@ import { ComingSoonBanner } from "../components/LanguageSelector";
 import { PhotoStrip } from "../components/PhotoStrip";
 import { useLanguage } from "../context/LanguageContext";
 import { usePatientHistory } from "../hooks/usePatientHistory";
+import { resolvePhotoUrl } from "../lib/photos";
 import { STATUS_META } from "../lib/status";
 import type { Status } from "../types";
 
@@ -142,8 +143,8 @@ function ProgressBody({
           {tr("Before and now", "पहले और अब")}
         </p>
         <div className="grid grid-cols-2 gap-3">
-          <PhotoCompareCard label={tr("Day 1", "दिन 1")} status={first.status} />
-          <PhotoCompareCard label={tr("Today", "आज")} status={latest.status} />
+          <PhotoCompareCard label={tr("Day 1", "दिन 1")} status={first.status} photoUrl={first.photo_url} />
+          <PhotoCompareCard label={tr("Today", "आज")} status={latest.status} photoUrl={latest.photo_url} />
         </div>
       </div>
 
@@ -218,8 +219,8 @@ function ProgressBody({
             <Stethoscope className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
             <p className={`text-sm leading-snug text-stone-700 ${hiClass}`}>
               {tr(
-                "Doctor portal updated quietly for review.",
-                "डॉक्टर पोर्टल समीक्षा के लिए शांत रूप से अपडेट हुआ।",
+                "Share this summary with your doctor at your next visit.",
+                "अगली मुलाकात में यह सारांश अपने डॉक्टर को दिखाएँ।",
               )}
             </p>
           </div>
@@ -234,17 +235,37 @@ function ProgressBody({
   );
 }
 
-function PhotoCompareCard({ label, status }: { label: string; status: Status }) {
+function PhotoCompareCard({
+  label,
+  status,
+  photoUrl,
+}: {
+  label: string;
+  status: Status;
+  photoUrl?: string | null;
+}) {
   const meta = STATUS_META[status];
   const iconColor: Record<Status, string> = {
     green: "text-emerald-500",
     amber: "text-amber-500",
     red: "text-red-500",
   };
+  const [failed, setFailed] = useState(false);
+  const src = resolvePhotoUrl(photoUrl);
+  const showImage = Boolean(src) && !failed;
   return (
     <div>
-      <div className={`flex aspect-square items-center justify-center rounded-lg border-2 ${meta.accent} bg-stone-100`}>
-        <Camera className={`h-7 w-7 ${iconColor[status]}`} />
+      <div className={`relative flex aspect-square items-center justify-center overflow-hidden rounded-lg border-2 ${meta.accent} bg-stone-100`}>
+        {showImage ? (
+          <img
+            src={src}
+            alt={label}
+            onError={() => setFailed(true)}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <Camera className={`h-7 w-7 ${iconColor[status]}`} />
+        )}
       </div>
       <p className="mt-1.5 text-center text-[11px] font-semibold text-stone-500">{label}</p>
     </div>

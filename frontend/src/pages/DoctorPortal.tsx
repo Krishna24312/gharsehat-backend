@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Activity,
@@ -77,23 +77,30 @@ function PriorityPill({ status }: { status: TriageStatus }) {
   );
 }
 
-function usePatients() {
+// Both hooks refetch when `refreshTick` changes (manual refresh or polling).
+// Background refreshes keep the current data on screen — no skeleton flicker —
+// and only surface an error when there is nothing to show, so polling is quiet.
+function usePatients(refreshTick: number) {
   const [data, setData] = useState<PatientSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [reloadKey, setReloadKey] = useState(0);
+  const hasData = useRef(false);
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    setError(null);
     fetchPatients()
       .then((patients) => {
-        if (active) setData(patients);
+        if (!active) return;
+        setData(patients);
+        hasData.current = true;
+        setError(null);
       })
       .catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : "Could not reach backend";
-        if (active) setError(message);
+        if (!active) return;
+        // Keep stale data visible on a background refresh failure.
+        if (!hasData.current) {
+          setError(err instanceof Error ? err.message : "Could not reach backend");
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -101,34 +108,46 @@ function usePatients() {
     return () => {
       active = false;
     };
-  }, [reloadKey]);
+  }, [refreshTick]);
 
-  return { data, error, loading, retry: () => setReloadKey((key) => key + 1) };
+  return { data, error, loading };
 }
 
-function usePatientDetail(id: string | null) {
+function usePatientDetail(id: string | null, refreshTick: number) {
   const [data, setData] = useState<PatientDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
+  const lastId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!id) {
       setData(null);
+      setError(null);
+      lastId.current = null;
       return;
     }
 
+    const idChanged = lastId.current !== id;
+    lastId.current = id;
     let active = true;
-    setLoading(true);
-    setError(null);
-    setData(null);
+    // Skeleton only when switching patients; a same-patient background refresh
+    // (refreshTick change) keeps the current detail on screen.
+    if (idChanged) {
+      setLoading(true);
+      setData(null);
+      setError(null);
+    }
     fetchPatientHistory(id)
       .then((detail) => {
-        if (active) setData(detail);
+        if (active) {
+          setData(detail);
+          setError(null);
+        }
       })
       .catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : "Could not load patient history";
-        if (active) setError(message);
+        if (active && idChanged) {
+          setError(err instanceof Error ? err.message : "Could not load patient history");
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -136,16 +155,26 @@ function usePatientDetail(id: string | null) {
     return () => {
       active = false;
     };
-  }, [id, reloadKey]);
+  }, [id, refreshTick]);
 
-  return { data, error, loading, retry: () => setReloadKey((key) => key + 1) };
+  return { data, error, loading };
 }
 
 export function DoctorPortal() {
-  const { data: patients, error, loading, retry } = usePatients();
+  const [refreshTick, setRefreshTick] = useState(0);
+  // One refresh drives both the list and the selected patient detail.
+  const refresh = useCallback(() => setRefreshTick((tick) => tick + 1), []);
+  const { data: patients, error, loading } = usePatients(refreshTick);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+
+  // Lightweight polling so newly submitted check-ins surface without a manual
+  // refresh. Quiet by design (background refresh, no skeletons). Not websockets.
+  useEffect(() => {
+    const interval = window.setInterval(refresh, 15000);
+    return () => window.clearInterval(interval);
+  }, [refresh]);
 
   useEffect(() => {
     if (!selectedId && patients && patients.length > 0) {
@@ -208,7 +237,7 @@ export function DoctorPortal() {
             </div>
             <button
               type="button"
-              onClick={retry}
+              onClick={refresh}
               className="grid h-8 w-8 place-items-center rounded-lg text-stone-500 transition hover:bg-white hover:text-brand"
               aria-label="Refresh patients"
               title="Refresh"
@@ -260,7 +289,7 @@ export function DoctorPortal() {
             </DoctorCard>
 
             {loading && <ListSkeleton />}
-            {error && !loading && <ErrorBox title="Could not reach backend" detail={error} onRetry={retry} />}
+            {error && !loading && <ErrorBox title="Could not reach backend" detail={error} onRetry={refresh} />}
             {!loading && !error && filtered.length === 0 && (
               <DoctorCard className="border-dashed px-5 py-8 text-center">
                 <p className="text-sm font-semibold text-stone-800">No patients found</p>
@@ -283,7 +312,12 @@ export function DoctorPortal() {
           </aside>
 
           <section className={selectedId ? "block" : "hidden lg:block"}>
-            <DetailPanel selectedId={selectedId} onBack={() => setSelectedId(null)} />
+            <DetailPanel
+              selectedId={selectedId}
+              refreshTick={refreshTick}
+              onBack={() => setSelectedId(null)}
+              onRefresh={refresh}
+            />
           </section>
         </div>
 
@@ -333,8 +367,18 @@ function PatientListButton({
   );
 }
 
-function DetailPanel({ selectedId, onBack }: { selectedId: string | null; onBack: () => void }) {
-  const { data, loading, error, retry } = usePatientDetail(selectedId);
+function DetailPanel({
+  selectedId,
+  refreshTick,
+  onBack,
+  onRefresh,
+}: {
+  selectedId: string | null;
+  refreshTick: number;
+  onBack: () => void;
+  onRefresh: () => void;
+}) {
+  const { data, loading, error } = usePatientDetail(selectedId, refreshTick);
 
   if (!selectedId) {
     return (
@@ -352,7 +396,7 @@ function DetailPanel({ selectedId, onBack }: { selectedId: string | null; onBack
     return (
       <div className="space-y-3">
         <BackBar onBack={onBack} />
-        <ErrorBox title="Could not load patient history" detail={error} onRetry={retry} />
+        <ErrorBox title="Could not load patient history" detail={error} onRetry={onRefresh} />
       </div>
     );
   }

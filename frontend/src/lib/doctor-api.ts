@@ -95,8 +95,6 @@ export function genderLabel(gender: string): string {
   return gender;
 }
 
-export function resolvePhotoUrl(photoUrl: string): string {
-  if (!photoUrl) return "";
-  if (photoUrl.startsWith("http://") || photoUrl.startsWith("https://")) return photoUrl;
-  return `${API_BASE_URL}${photoUrl}`;
-}
+// Re-exported from the shared helper so the doctor portal and patient app
+// resolve backend photo URLs identically (no behavior change here).
+export { resolvePhotoUrl } from "./photos";

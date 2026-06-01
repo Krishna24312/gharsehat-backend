@@ -94,6 +94,9 @@ export interface HistoryEntry {
   symptom_score: number;
   final_score: number;
   status: Status;
+  // Present on caregiver-submitted check-ins; older hardcoded entries omit them.
+  submitted?: boolean;
+  created_at?: string;
 }
 
 // GET /patient/<id>/history response.
