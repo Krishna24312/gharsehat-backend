@@ -1,4 +1,3 @@
-import { ShieldAlert } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
 
 // Fixed safety disclaimer. "Diagnosis" is permitted ONLY inside this text.
@@ -17,11 +16,8 @@ export function Disclaimer({ english, hindi, className = "" }: DisclaimerProps) 
   const { isHindi, hiClass } = useLanguage();
   const text = isHindi ? (hindi ?? DISCLAIMER_HI) : (english ?? DISCLAIMER_EN);
   return (
-    <div
-      className={`flex items-start gap-2 rounded-xl bg-stone-100 px-3 py-2.5 text-xs leading-relaxed text-stone-500 ${className}`}
-    >
-      <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-stone-400" />
-      <span className={isHindi ? hiClass : ""}>{text}</span>
-    </div>
+    <p className={`text-center text-[11px] leading-relaxed text-slate-500 ${className} ${isHindi ? hiClass : ""}`}>
+      {text}
+    </p>
   );
 }

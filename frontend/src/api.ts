@@ -2,7 +2,13 @@
 // under API_BASE_URL — never hardcode the host anywhere else.
 
 import { API_BASE_URL } from "./config";
-import type { AnalyzeResponse, AssessResponse, PatientHistory, Symptoms } from "./types";
+import type {
+  AnalyzeResponse,
+  AssessResponse,
+  CaptureCheckResponse,
+  PatientHistory,
+  Symptoms,
+} from "./types";
 
 /** Friendly error type so callers can distinguish network/HTTP failures. */
 export class ApiError extends Error {
@@ -45,6 +51,18 @@ export async function analyzePhotos(
     body: form,
   });
   return asJson<AnalyzeResponse>(response);
+}
+
+/** POST /capture-check — live camera preview quality check for one frame. */
+export async function captureCheck(frame: Blob): Promise<CaptureCheckResponse> {
+  const form = new FormData();
+  form.append("frame", frame, "preview-frame.jpg");
+
+  const response = await fetch(`${API_BASE_URL}/capture-check`, {
+    method: "POST",
+    body: form,
+  });
+  return asJson<CaptureCheckResponse>(response);
 }
 
 /** POST /assess — score the check-in (change_score + symptoms) into a status. */

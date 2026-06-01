@@ -18,7 +18,6 @@ import { Disclaimer } from "../components/Disclaimer";
 import { Layout } from "../components/Layout";
 import { ComingSoonBanner } from "../components/LanguageSelector";
 import { PhotoStrip } from "../components/PhotoStrip";
-import { StatusBadge } from "../components/StatusBadge";
 import { useLanguage } from "../context/LanguageContext";
 import { usePatientHistory } from "../hooks/usePatientHistory";
 import { STATUS_META } from "../lib/status";
@@ -84,7 +83,6 @@ function ProgressBody({
   const { tr, hiClass } = useLanguage();
   const latest = data.history[data.history.length - 1];
   const first = data.history[0];
-  const latestMeta = STATUS_META[latest.status];
   const verdict =
     latest.status === "red"
       ? tr("High visual change today", "आज बदलाव ज़्यादा है")

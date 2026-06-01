@@ -16,6 +16,7 @@ __pycache__/
 # Editors
 .vscode/
 .idea/
+.claude/
 
 # Logs
 *.log

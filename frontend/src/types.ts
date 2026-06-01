@@ -38,6 +38,33 @@ export interface AnalyzeResponse {
   message?: string;
 }
 
+export type CaptureCheckStatus = "good" | "bad_lighting" | "blurry";
+
+export type DistanceStatus = "good" | "too_close" | "too_far" | "unknown";
+export type FramingStatus = "good" | "off_center" | "guide_only" | "unknown";
+
+export interface CaptureCheckResponse {
+  status: CaptureCheckStatus;
+  lighting: "good" | "too_dark" | "too_bright" | string;
+  brightness: number;
+  blur: "sharp" | "blurry" | string;
+  blur_score: number;
+  framing: "guide_only" | string;
+  message: string;
+  // Optional, backwards-compatible placement signals. The backend may omit
+  // these on older builds; treat missing as "unknown". Absolute distance needs
+  // a scale reference we don't have yet, so it stays "unknown" — never faked.
+  framing_status?: FramingStatus;
+  framing_message?: string;
+  distance_status?: DistanceStatus;
+  distance_message?: string;
+  // Distance-proxy debug fields (0–1). skin_fill = largest skin blob over the
+  // guide box; center_fill = how much of the guide's centre core that blob
+  // covers (drives the verdict). Exposed for transparency; may be absent.
+  skin_fill?: number;
+  center_fill?: number;
+}
+
 // POST /assess response.
 export interface AssessResponse {
   status: Status;
