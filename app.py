@@ -1,9 +1,9 @@
 """GharSehat backend — Flask app setup, CORS, and route wiring.
 
 Wires the health check, the /assess scoring endpoint, the doctor portal
-(/patients and /patient/<id>/history), a mock /analyze endpoint, and a
-/capture-check photo-quality endpoint. Real OpenCV wound comparison
-replaces the /analyze mock later.
+(/patients and /patient/<id>/history), a mock /analyze endpoint, an
+experimental real-OpenCV /analyze-real endpoint, and a /capture-check
+photo-quality endpoint. The /analyze mock stays the demo safety net.
 """
 
 import os
@@ -11,6 +11,7 @@ import os
 from flask import Flask, Response, jsonify, request, send_from_directory
 from flask_cors import CORS
 
+from analyze import AnalyzeError, analyze_pair
 from assess import AssessmentError, assess
 from capture_check import CaptureCheckError, check_capture_frame
 from data import PATIENTS, get_current_status, get_last_check_in_timestamp
@@ -84,6 +85,27 @@ def analyze() -> Response | tuple[Response, int]:
             "disclaimer": "This checks visual change between photos only. It is not a medical diagnosis.",
         }
     )
+
+
+@app.route("/analyze-real", methods=["POST"])
+def analyze_real() -> Response | tuple[Response, int]:
+    """Experimental real-OpenCV wound-change comparison.
+
+    Expects multipart/form-data with image files `yesterday` and `today`
+    (JPG/PNG; HEIC may not decode). Runs a controlled-demo CV pipeline and
+    reports visual change only — never a diagnosis. The bytes are analysed
+    in-memory and never saved. The /analyze mock above is left untouched as
+    the demo safety net.
+    """
+    if "yesterday" not in request.files or "today" not in request.files:
+        return jsonify({"error": "Both yesterday and today image files are required."}), 400
+    yesterday_bytes = request.files["yesterday"].read()
+    today_bytes = request.files["today"].read()
+    try:
+        result = analyze_pair(yesterday_bytes, today_bytes)
+    except AnalyzeError as error:
+        return jsonify({"error": error.message}), 400
+    return jsonify(result)
 
 
 @app.route("/capture-check", methods=["POST"])
