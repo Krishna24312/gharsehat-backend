@@ -566,6 +566,8 @@ function DetailPanel({
         </DoctorCard>
       </div>
 
+      {latest && <AdvancedPhotoAnalysis entry={latest} />}
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div className="flex gap-3 rounded-2xl border border-sky-100 bg-sky-50 p-4">
           <Info className="mt-0.5 h-5 w-5 shrink-0 text-sky-700" />
@@ -587,6 +589,66 @@ function DetailPanel({
         </div>
       </div>
     </div>
+  );
+}
+
+// Map a non-diagnostic visual metric (0-100) to a human-readable severity.
+// Higher = more visual area change. Never a diagnosis.
+function severityLabel(value: number | undefined): { label: string; tone: TriageStatus } {
+  if (value == null || value <= 0) return { label: "Low", tone: "green" };
+  if (value >= 60) return { label: "High", tone: "red" };
+  if (value >= 30) return { label: "Medium", tone: "amber" };
+  return { label: "Mild", tone: "amber" };
+}
+
+/**
+ * Collapsed "Advanced photo analysis" section for the selected patient.
+ *
+ * Shows non-diagnostic visual-area severity labels derived from the latest
+ * submitted check-in's /analyze-real metrics. Renders nothing when no such
+ * metrics were saved (older / mock-analyze check-ins). Uses a native
+ * <details> so it is collapsed by default and needs no extra state. Shows
+ * severity words only — never raw pixel counts or debug data.
+ */
+function AdvancedPhotoAnalysis({ entry }: { entry: DoctorHistoryEntry }) {
+  const rows = [
+    { label: "Red visual area", value: entry.redness_delta },
+    { label: "Dark visual area", value: entry.dark_area_delta },
+    { label: "Yellow/cream visual area", value: entry.yellow_area_delta },
+    { label: "Approx. visual-region change", value: entry.wound_area_delta },
+    { label: "Combined border change", value: entry.combined_border_change },
+  ];
+  // Only render when at least one advanced metric was actually saved.
+  if (rows.every((row) => row.value == null)) return null;
+
+  return (
+    <DoctorCard className="p-0">
+      <details className="group">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 p-4 md:p-5">
+          <span className="text-sm font-bold text-stone-900">Advanced photo analysis</span>
+          <span className="text-stone-400 transition-transform group-open:rotate-180" aria-hidden>▾</span>
+        </summary>
+        <div className="space-y-2 px-4 pb-4 md:px-5 md:pb-5">
+          <ul className="space-y-1.5">
+            {rows.map((row) => {
+              const { label, tone } = severityLabel(row.value);
+              return (
+                <li
+                  key={row.label}
+                  className="flex items-center justify-between rounded-xl border border-stone-100 px-3 py-2 text-sm"
+                >
+                  <span className="text-stone-700">{row.label}</span>
+                  <span className={`rounded-full border px-2 py-0.5 text-[11px] font-bold ${STATUS_BADGE[tone]}`}>
+                    {label}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="text-[11px] text-stone-500">Non-diagnostic visual features for doctor review.</p>
+        </div>
+      </details>
+    </DoctorCard>
   );
 }
 

@@ -44,6 +44,15 @@ SATURATION_THRESHOLDS = [80, 100, 120]
 MIN_RED_AREA_PIXELS = 100  # ignore thresholds with too little yesterday red
 ROI_FRACTION = 0.85  # central 85% width and height
 
+# Supporting non-diagnostic visual features (dark / yellow / combined region).
+# These describe visual area change only — never necrosis, pus, slough, or
+# depth. Dark = very low brightness; yellow/cream = warm mid-hue region.
+DARK_VALUE_MAX = 60       # HSV V (or grayscale) below this counts as "dark"
+YELLOW_HUE_LOW = 18
+YELLOW_HUE_HIGH = 45
+YELLOW_SAT_MIN = 40
+YELLOW_VALUE_MIN = 80
+
 
 class AnalyzeError(Exception):
     """Raised when an image can't be decoded or the pair can't be analysed.
@@ -122,6 +131,44 @@ def bounding_box_area(mask: np.ndarray) -> int:
     return int(width * height)
 
 
+def dark_mask(image_bgr: np.ndarray) -> np.ndarray:
+    """Mask of very dark visual regions (low brightness) in the ROI.
+
+    Non-diagnostic: this is "dark visual area" only, never necrosis or depth.
+    """
+    hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
+    mask = cv2.inRange(hsv, np.array([0, 0, 0]), np.array([180, 255, DARK_VALUE_MAX]))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, KERNEL)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, KERNEL)
+    return mask
+
+
+def yellow_mask(image_bgr: np.ndarray) -> np.ndarray:
+    """Mask of yellow/cream visual regions in the ROI.
+
+    Non-diagnostic: this is "yellow/cream visual area" only, never pus or slough.
+    """
+    hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
+    mask = cv2.inRange(
+        hsv,
+        np.array([YELLOW_HUE_LOW, YELLOW_SAT_MIN, YELLOW_VALUE_MIN]),
+        np.array([YELLOW_HUE_HIGH, 255, 255]),
+    )
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, KERNEL)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, KERNEL)
+    return mask
+
+
+def area_delta_pct(yesterday_area: int, today_area: int) -> float:
+    """Percentage area increase from yesterday to today, clamped to 0-100.
+
+    Uses the same MIN_DENOMINATOR floor as redness so a near-empty yesterday
+    can't explode the value; negative (shrinking) deltas clamp to 0.
+    """
+    raw = ((today_area - yesterday_area) / max(yesterday_area, MIN_DENOMINATOR)) * 100
+    return round(clamp(raw), 2)
+
+
 def clamp(value: float, low: float = 0.0, high: float = 100.0) -> float:
     """Clamp `value` into [low, high]."""
     return max(low, min(high, value))
@@ -173,17 +220,67 @@ def score_at_threshold(
     }
 
 
+def compute_visual_features(
+    yesterday_roi: np.ndarray, today_roi: np.ndarray, red_saturation: int
+) -> dict[str, object]:
+    """Compute supporting non-diagnostic visual-area metrics on the ROI.
+
+    `red_saturation` is the redness threshold selected by the primary scorer
+    (or the default when none was selected), used for the combined region. All
+    deltas are area increases clamped to 0-100. Reports visual area only —
+    never necrosis, pus, slough, or depth.
+    """
+    dark_y_mask = dark_mask(yesterday_roi)
+    dark_t_mask = dark_mask(today_roi)
+    yellow_y_mask = yellow_mask(yesterday_roi)
+    yellow_t_mask = yellow_mask(today_roi)
+    red_y_mask = redness_mask(yesterday_roi, saturation_min=red_saturation)
+    red_t_mask = redness_mask(today_roi, saturation_min=red_saturation)
+
+    # Approximate visual region = red OR dark OR yellow (not true segmentation).
+    combined_y_mask = cv2.bitwise_or(cv2.bitwise_or(red_y_mask, dark_y_mask), yellow_y_mask)
+    combined_t_mask = cv2.bitwise_or(cv2.bitwise_or(red_t_mask, dark_t_mask), yellow_t_mask)
+
+    dark_y, dark_t = red_area(dark_y_mask), red_area(dark_t_mask)
+    yellow_y, yellow_t = red_area(yellow_y_mask), red_area(yellow_t_mask)
+    combined_y, combined_t = red_area(combined_y_mask), red_area(combined_t_mask)
+    combined_bbox_y = bounding_box_area(combined_y_mask)
+    combined_bbox_t = bounding_box_area(combined_t_mask)
+
+    return {
+        "dark_area_delta": area_delta_pct(dark_y, dark_t),
+        "yellow_area_delta": area_delta_pct(yellow_y, yellow_t),
+        "wound_area_delta": area_delta_pct(combined_y, combined_t),
+        "combined_border_change": area_delta_pct(combined_bbox_y, combined_bbox_t),
+        # Raw areas for the debug object.
+        "dark_area_yesterday": dark_y,
+        "dark_area_today": dark_t,
+        "yellow_area_yesterday": yellow_y,
+        "yellow_area_today": yellow_t,
+        "combined_area_yesterday": combined_y,
+        "combined_area_today": combined_t,
+        "combined_bbox_yesterday": combined_bbox_y,
+        "combined_bbox_today": combined_bbox_t,
+    }
+
+
 def analyze_pair(yesterday_bytes: bytes, today_bytes: bytes) -> dict[str, object]:
     """Compare two wound photos and return a visual-change result dict.
 
     Steps:
       1. Decode + resize to width 800, then crop the central 85% ROI.
-      2. Score at saturation thresholds 80, 100, 120.
-      3. Keep thresholds with positive red growth and enough yesterday red.
-      4. If none pass, return zeros with a debug note.
-      5. Otherwise the change_score is the MEDIAN of valid scores; the shown
-         redness_delta/border_change come from the valid threshold whose score
-         is closest to that median.
+      2. Redness (primary, unchanged): score at saturation thresholds 80, 100,
+         120; keep thresholds with positive red growth and enough yesterday
+         red; redness_score = MEDIAN of valid scores (0 if none pass). The shown
+         redness_delta/border_change come from the threshold closest to that
+         median.
+      3. Supporting non-diagnostic features (dark / yellow / combined region)
+         on the SAME ROI, using the selected redness threshold for the combined
+         mask. These never claim necrosis, pus, slough, or depth.
+      4. final change_score = max(redness_score, visual_support_score), where
+         visual_support_score = max(wound_area_delta, combined_border_change).
+         dark/yellow are returned as supporting/debug fields only and never
+         drive the headline score on their own.
 
     Raises AnalyzeError if either image fails to decode.
     """
@@ -193,46 +290,66 @@ def analyze_pair(yesterday_bytes: bytes, today_bytes: bytes) -> dict[str, object
     threshold_results = [score_at_threshold(yesterday, today, s) for s in SATURATION_THRESHOLDS]
     valid_results = [result for result in threshold_results if result["used_for_score"]]
 
+    # --- Primary redness score (existing behavior, unchanged) ---
+    if valid_results:
+        valid_scores = [result["change_score"] for result in valid_results]
+        redness_score = statistics.median(valid_scores)
+        # Pick the valid result closest to the median; on a tie prefer the
+        # higher score (high sensitivity — better to over-flag than miss change).
+        selected = min(
+            valid_results,
+            key=lambda result: (abs(result["change_score"] - redness_score), -result["change_score"]),
+        )
+        selected_threshold = selected["s_threshold"]
+        redness_delta = selected["redness_delta"]
+        border_change = selected["border_change"]
+        redness_note = (
+            "redness_score is the median over growth-positive thresholds; "
+            "redness_delta and border_change are from the threshold closest to that median."
+        )
+    else:
+        # Preserve the conservative no-growth behavior for the redness portion.
+        redness_score = 0.0
+        selected_threshold = None
+        redness_delta = 0.0
+        border_change = 0.0
+        redness_note = "No positive red-growth direction detected."
+
+    # --- Supporting non-diagnostic visual features ---
+    # Combined region uses the selected red threshold (default when none chosen).
+    features = compute_visual_features(yesterday, today, selected_threshold or SATURATION_MIN)
+    visual_support_score = max(features["wound_area_delta"], features["combined_border_change"])
+    change_score = max(redness_score, visual_support_score)
+
     debug: dict[str, object] = {
-        "method": "growth_direction_filtered_multi_threshold_roi",
-        "thresholds": list(SATURATION_THRESHOLDS),
-        "selected_threshold": None,
+        "method": "multi_feature_visual_change_roi",
         "roi": "central_85_percent",
+        "thresholds": list(SATURATION_THRESHOLDS),
+        "selected_threshold": selected_threshold,
         "valid_thresholds": [result["s_threshold"] for result in valid_results],
         "threshold_results": threshold_results,
-        "note": "",
+        "redness_score": round(redness_score, 2),
+        "visual_support_score": round(visual_support_score, 2),
+        "dark_area_yesterday": features["dark_area_yesterday"],
+        "dark_area_today": features["dark_area_today"],
+        "yellow_area_yesterday": features["yellow_area_yesterday"],
+        "yellow_area_today": features["yellow_area_today"],
+        "combined_area_yesterday": features["combined_area_yesterday"],
+        "combined_area_today": features["combined_area_today"],
+        "combined_bbox_yesterday": features["combined_bbox_yesterday"],
+        "combined_bbox_today": features["combined_bbox_today"],
+        "redness_note": redness_note,
+        "note": "non-diagnostic visual features only",
     }
 
-    if not valid_results:
-        debug["note"] = "No positive red-growth direction detected."
-        return {
-            "change_score": 0.0,
-            "redness_delta": 0.0,
-            "border_change": 0.0,
-            "mock": False,
-            "disclaimer": DISCLAIMER,
-            "debug": debug,
-        }
-
-    valid_scores = [result["change_score"] for result in valid_results]
-    median_score = statistics.median(valid_scores)
-    # Pick the valid result closest to the median; on a tie prefer the higher
-    # score (high sensitivity — better to over-flag than miss change).
-    selected = min(
-        valid_results,
-        key=lambda result: (abs(result["change_score"] - median_score), -result["change_score"]),
-    )
-
-    debug["selected_threshold"] = selected["s_threshold"]
-    debug["note"] = (
-        "change_score is the median over growth-positive thresholds; "
-        "redness_delta and border_change are from the threshold closest to that median."
-    )
-
     return {
-        "change_score": round(median_score, 2),
-        "redness_delta": selected["redness_delta"],
-        "border_change": selected["border_change"],
+        "change_score": round(change_score, 2),
+        "redness_delta": redness_delta,
+        "border_change": border_change,
+        "dark_area_delta": features["dark_area_delta"],
+        "yellow_area_delta": features["yellow_area_delta"],
+        "wound_area_delta": features["wound_area_delta"],
+        "combined_border_change": features["combined_border_change"],
         "mock": False,
         "disclaimer": DISCLAIMER,
         "debug": debug,

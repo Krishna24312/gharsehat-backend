@@ -128,6 +128,11 @@ export interface CheckinSubmission {
   action?: AssessAction;
   rednessDelta?: number;
   borderChange?: number;
+  // Advanced non-diagnostic visual metrics from /analyze-real (optional).
+  darkAreaDelta?: number;
+  yellowAreaDelta?: number;
+  woundAreaDelta?: number;
+  combinedBorderChange?: number;
 }
 
 /**
@@ -149,6 +154,11 @@ export async function submitCheckin(input: CheckinSubmission): Promise<void> {
   if (input.action) form.append("action", input.action);
   if (input.rednessDelta != null) form.append("redness_delta", String(input.rednessDelta));
   if (input.borderChange != null) form.append("border_change", String(input.borderChange));
+  if (input.darkAreaDelta != null) form.append("dark_area_delta", String(input.darkAreaDelta));
+  if (input.yellowAreaDelta != null) form.append("yellow_area_delta", String(input.yellowAreaDelta));
+  if (input.woundAreaDelta != null) form.append("wound_area_delta", String(input.woundAreaDelta));
+  if (input.combinedBorderChange != null)
+    form.append("combined_border_change", String(input.combinedBorderChange));
 
   const response = await fetch(`${API_BASE_URL}/checkins`, {
     method: "POST",

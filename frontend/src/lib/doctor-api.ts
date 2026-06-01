@@ -29,6 +29,13 @@ export interface DoctorHistoryEntry {
   checkin_id?: string;
   today_photo_url?: string | null;
   yesterday_photo_url?: string | null;
+  // Advanced non-diagnostic visual metrics, only on submitted /analyze-real
+  // check-ins. All optional for backward compatibility.
+  redness_delta?: number;
+  dark_area_delta?: number;
+  yellow_area_delta?: number;
+  wound_area_delta?: number;
+  combined_border_change?: number;
 }
 
 export interface PatientDetail {
