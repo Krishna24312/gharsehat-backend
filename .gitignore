@@ -24,4 +24,5 @@ __pycache__/
 # Demo runtime data (caregiver uploads + submitted check-ins)
 test_images/
 uploads/
-checkins.jsoncheckins.json.tmp
+checkins.json
+checkins.json.tmp
