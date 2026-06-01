@@ -1,4 +1,5 @@
 import { AlertCircle, Camera, Plus } from "lucide-react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { BottomNav } from "../components/BottomNav";
 import { CTAButton } from "../components/CTAButton";
@@ -8,9 +9,11 @@ import { LanguageSelector } from "../components/LanguageSelector";
 import { ProgressBar } from "../components/ProgressBar";
 import { useCheckIn } from "../context/CheckInContext";
 import { useLanguage } from "../context/LanguageContext";
+import { resolvePhotoUrl } from "../lib/photos";
 import { STATUS_META } from "../lib/status";
+import { entryKey, entryLabel, entryMeta, type EntryMeta } from "../lib/timeline";
 import { usePatientHistory } from "../hooks/usePatientHistory";
-import type { PatientHistory } from "../types";
+import type { HistoryEntry, PatientHistory } from "../types";
 
 function capitalize(text: string): string {
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
@@ -104,9 +107,12 @@ function HomeBody({
   const meta = STATUS_META[latest.status];
   const improving = latest.final_score < first.final_score;
 
-  // Most recent backend check-ins as photo-history tiles (day = position in the
-  // timeline). Photos are placeholders since /static images aren't served.
-  const recent = data.history.map((entry, index) => ({ entry, day: index + 1 })).slice(-3);
+  // Most recent backend check-ins as photo-history tiles. Labels come from the
+  // shared timeline helper so submitted check-ins read "Today"/"Recent" instead
+  // of inventing new recovery days (Day 6/Day 7).
+  const recent = data.history
+    .map((entry, index) => ({ entry, index, meta: entryMeta(data.history, index) }))
+    .slice(-3);
 
   return (
     <>
@@ -153,20 +159,8 @@ function HomeBody({
         </p>
 
         <div className="grid grid-cols-4 gap-2">
-          {recent.map(({ entry, day }) => (
-            <div
-              key={entry.date}
-              className="relative flex aspect-square flex-col items-center justify-center gap-1 rounded-lg bg-slate-100"
-              title={tr(meta.labelEn, meta.labelHi)}
-            >
-              <Camera className="h-[18px] w-[18px] text-slate-500" />
-              <span className={`text-[10px] font-medium text-slate-500 ${hiClass}`}>
-                {tr("Day", "दिन")} {day}
-              </span>
-              <span
-                className={`absolute right-1 top-1 h-2 w-2 rounded-full ${STATUS_META[entry.status].dot}`}
-              />
-            </div>
+          {recent.map(({ entry, index, meta }) => (
+            <PhotoHistoryTile key={entryKey(entry, index)} entry={entry} meta={meta} />
           ))}
 
           <button
@@ -180,5 +174,45 @@ function HomeBody({
         </div>
       </div>
     </>
+  );
+}
+
+// One photo-history tile. Renders the real check-in photo when its resolved
+// URL loads; on a missing/broken image it falls back to the camera placeholder.
+// Failure state is per-tile so one broken image doesn't blank the others.
+function PhotoHistoryTile({ entry, meta }: { entry: HistoryEntry; meta: EntryMeta }) {
+  const { tr, hiClass } = useLanguage();
+  const [failed, setFailed] = useState(false);
+  const statusMeta = STATUS_META[entry.status];
+  const src = resolvePhotoUrl(entry.photo_url);
+  const showImage = Boolean(src) && !failed;
+  const label = entryLabel(meta);
+  const caption = tr(label.en, label.hi);
+
+  return (
+    <div
+      className="relative aspect-square overflow-hidden rounded-lg bg-slate-100"
+      title={tr(statusMeta.labelEn, statusMeta.labelHi)}
+    >
+      {showImage ? (
+        <>
+          <img
+            src={src}
+            alt={caption}
+            onError={() => setFailed(true)}
+            className="h-full w-full object-cover"
+          />
+          <span className={`absolute inset-x-0 bottom-0 bg-black/45 py-0.5 text-center text-[10px] font-semibold text-white ${hiClass}`}>
+            {caption}
+          </span>
+        </>
+      ) : (
+        <div className="flex h-full w-full flex-col items-center justify-center gap-1">
+          <Camera className="h-[18px] w-[18px] text-slate-500" />
+          <span className={`text-[10px] font-medium text-slate-500 ${hiClass}`}>{caption}</span>
+        </div>
+      )}
+      <span className={`absolute right-1 top-1 h-2 w-2 rounded-full ring-2 ring-white ${statusMeta.dot}`} />
+    </div>
   );
 }

@@ -22,6 +22,7 @@ import { useLanguage } from "../context/LanguageContext";
 import { usePatientHistory } from "../hooks/usePatientHistory";
 import { resolvePhotoUrl } from "../lib/photos";
 import { STATUS_META } from "../lib/status";
+import { entryKey, entryLabel, entryMeta } from "../lib/timeline";
 import type { Status } from "../types";
 
 export function Progress() {
@@ -107,8 +108,9 @@ function ProgressBody({
           );
 
   const days = data.history.map((entry, index) => ({
-    day: index + 1,
+    index,
     entry,
+    meta: entryMeta(data.history, index),
     flagged: Object.values(entry.symptoms).some(Boolean),
   }));
 
@@ -191,7 +193,7 @@ function ProgressBody({
         <div className="grid grid-cols-5 gap-2">
           {days.map((day) => (
             <div
-              key={day.entry.date}
+              key={entryKey(day.entry, day.index)}
               className={`flex flex-col items-center gap-1 rounded-lg border p-2 ${
                 day.flagged ? "border-amber-200 bg-amber-50" : "border-emerald-100 bg-emerald-50"
               }`}
@@ -203,7 +205,7 @@ function ProgressBody({
                 <Check className="h-4 w-4 text-emerald-700" />
               )}
               <span className={`text-[10px] font-bold text-stone-500 ${hiClass}`}>
-                {tr("Day", "दिन")} {day.day}
+                {tr(entryLabel(day.meta).en, entryLabel(day.meta).hi)}
               </span>
             </div>
           ))}

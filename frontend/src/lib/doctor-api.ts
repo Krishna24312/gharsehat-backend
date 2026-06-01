@@ -22,6 +22,9 @@ export interface DoctorHistoryEntry {
   symptom_score: number;
   final_score: number;
   status: TriageStatus;
+  // Present on caregiver-submitted check-ins; hardcoded entries omit them.
+  submitted?: boolean;
+  created_at?: string;
 }
 
 export interface PatientDetail {

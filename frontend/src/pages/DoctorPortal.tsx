@@ -31,6 +31,7 @@ import {
   type PatientSummary,
   type TriageStatus,
 } from "../lib/doctor-api";
+import { entryKey, entryLabel, entryMeta } from "../lib/timeline";
 
 type Filter = "all" | TriageStatus;
 
@@ -461,7 +462,7 @@ function DetailPanel({
         <MetricCard
           icon={<CalendarDays className="h-4 w-4" />}
           label="Latest check-in"
-          value={latest ? formatDate(latest.date) : "-"}
+          value={latest ? formatDate(latest.created_at ?? latest.date) : "-"}
           detail="Caregiver submitted timeline"
           tone={currentStatus}
         />
@@ -501,13 +502,15 @@ function DetailPanel({
             <tbody>
               {data.history.map((entry, index) => (
                 <tr
-                  key={entry.date}
+                  key={entryKey(entry, index)}
                   className={`border-t border-stone-100 ${
                     index === data.history.length - 1 ? "bg-stone-50/80" : ""
                   }`}
                 >
-                  <td className="px-2 py-3 font-semibold text-stone-800">Day {index + 1}</td>
-                  <td className="px-2 py-3 text-stone-500">{formatDate(entry.date)}</td>
+                  <td className="px-2 py-3 font-semibold text-stone-800">
+                    {entryLabel(entryMeta(data.history, index)).en}
+                  </td>
+                  <td className="px-2 py-3 text-stone-500">{formatDate(entry.created_at ?? entry.date)}</td>
                   <td className="px-2 py-3">
                     <DoctorStatusBadge status={entry.status} />
                   </td>
@@ -528,7 +531,11 @@ function DetailPanel({
           <h3 className="mb-3 text-sm font-bold text-stone-900">Wound photos</h3>
           <div className="grid grid-cols-5 gap-2">
             {data.history.map((entry, index) => (
-              <PhotoThumb key={entry.date} entry={entry} day={index + 1} />
+              <PhotoThumb
+                key={entryKey(entry, index)}
+                entry={entry}
+                label={entryLabel(entryMeta(data.history, index)).en}
+              />
             ))}
           </div>
         </DoctorCard>
@@ -643,7 +650,7 @@ function TrendChart({ history, max }: { history: DoctorHistoryEntry[]; max: numb
       {history.map((entry, index) => {
         const percent = Math.max(7, Math.round((entry.final_score / max) * 100));
         return (
-          <div key={entry.date} className="flex h-full flex-1 flex-col items-center gap-1.5">
+          <div key={entryKey(entry, index)} className="flex h-full flex-1 flex-col items-center gap-1.5">
             <div className="text-[10px] tabular-nums text-stone-500">{entry.final_score}</div>
             <div className="relative flex w-full flex-1 items-end overflow-hidden rounded-lg bg-stone-100">
               <div
@@ -651,7 +658,9 @@ function TrendChart({ history, max }: { history: DoctorHistoryEntry[]; max: numb
                 style={{ height: `${percent}%` }}
               />
             </div>
-            <div className="text-[10px] font-semibold text-stone-500">Day {index + 1}</div>
+            <div className="text-[10px] font-semibold text-stone-500">
+              {entryLabel(entryMeta(history, index)).en}
+            </div>
           </div>
         );
       })}
@@ -659,7 +668,7 @@ function TrendChart({ history, max }: { history: DoctorHistoryEntry[]; max: numb
   );
 }
 
-function PhotoThumb({ entry, day }: { entry: DoctorHistoryEntry; day: number }) {
+function PhotoThumb({ entry, label }: { entry: DoctorHistoryEntry; label: string }) {
   const [failed, setFailed] = useState(false);
   const source = resolvePhotoUrl(entry.photo_url);
   const showImage = source && !failed;
@@ -673,12 +682,12 @@ function PhotoThumb({ entry, day }: { entry: DoctorHistoryEntry; day: number }) 
             ? "border-amber-200"
             : "border-emerald-200"
       }`}
-      title={`Day ${day} · ${STATUS_LABEL[entry.status]}`}
+      title={`${label} · ${STATUS_LABEL[entry.status]}`}
     >
       {showImage ? (
         <img
           src={source}
-          alt={`Wound photo day ${day}`}
+          alt={`Wound photo ${label}`}
           className="h-full w-full object-cover"
           onError={() => setFailed(true)}
         />
@@ -693,7 +702,7 @@ function PhotoThumb({ entry, day }: { entry: DoctorHistoryEntry; day: number }) 
           }`}
         >
           <ImageOff className="h-4 w-4 opacity-70" />
-          <span className="text-[10px] font-bold">Day {day}</span>
+          <span className="text-[10px] font-bold">{label}</span>
         </div>
       )}
       <span className={`absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full ring-2 ring-white ${STATUS_DOT[entry.status]}`} />
