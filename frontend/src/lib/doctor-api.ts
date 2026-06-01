@@ -23,8 +23,12 @@ export interface DoctorHistoryEntry {
   final_score: number;
   status: TriageStatus;
   // Present on caregiver-submitted check-ins; hardcoded entries omit them.
+  // A submitted check-in is a before/today pair; photo_url stays = today_photo_url.
   submitted?: boolean;
   created_at?: string;
+  checkin_id?: string;
+  today_photo_url?: string | null;
+  yesterday_photo_url?: string | null;
 }
 
 export interface PatientDetail {

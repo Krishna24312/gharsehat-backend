@@ -31,7 +31,7 @@ import {
   type PatientSummary,
   type TriageStatus,
 } from "../lib/doctor-api";
-import { entryKey, entryLabel, entryMeta } from "../lib/timeline";
+import { buildPhotoTimeline, entryKey, entryLabel, entryMeta, type TimelinePhoto } from "../lib/timeline";
 
 type Filter = "all" | TriageStatus;
 
@@ -530,12 +530,8 @@ function DetailPanel({
         <DoctorCard className="p-4 md:p-5">
           <h3 className="mb-3 text-sm font-bold text-stone-900">Wound photos</h3>
           <div className="grid grid-cols-5 gap-2">
-            {data.history.map((entry, index) => (
-              <PhotoThumb
-                key={entryKey(entry, index)}
-                entry={entry}
-                label={entryLabel(entryMeta(data.history, index)).en}
-              />
+            {buildPhotoTimeline(data.history).map((photo) => (
+              <PhotoThumb key={photo.key} photo={photo} />
             ))}
           </div>
         </DoctorCard>
@@ -668,21 +664,22 @@ function TrendChart({ history, max }: { history: DoctorHistoryEntry[]; max: numb
   );
 }
 
-function PhotoThumb({ entry, label }: { entry: DoctorHistoryEntry; label: string }) {
+function PhotoThumb({ photo }: { photo: TimelinePhoto }) {
   const [failed, setFailed] = useState(false);
-  const source = resolvePhotoUrl(entry.photo_url);
+  const source = resolvePhotoUrl(photo.url);
   const showImage = source && !failed;
+  const label = photo.labelEn;
 
   return (
     <div
       className={`relative aspect-square overflow-hidden rounded-xl border bg-stone-100 ${
-        entry.status === "red"
+        photo.status === "red"
           ? "border-red-200"
-          : entry.status === "amber"
+          : photo.status === "amber"
             ? "border-amber-200"
             : "border-emerald-200"
       }`}
-      title={`${label} · ${STATUS_LABEL[entry.status]}`}
+      title={`${label} · ${STATUS_LABEL[photo.status]}`}
     >
       {showImage ? (
         <img
@@ -694,9 +691,9 @@ function PhotoThumb({ entry, label }: { entry: DoctorHistoryEntry; label: string
       ) : (
         <div
           className={`flex h-full w-full flex-col items-center justify-center gap-1 text-stone-500 ${
-            entry.status === "red"
+            photo.status === "red"
               ? "bg-red-50"
-              : entry.status === "amber"
+              : photo.status === "amber"
                 ? "bg-amber-50"
                 : "bg-emerald-50"
           }`}
@@ -705,7 +702,7 @@ function PhotoThumb({ entry, label }: { entry: DoctorHistoryEntry; label: string
           <span className="text-[10px] font-bold">{label}</span>
         </div>
       )}
-      <span className={`absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full ring-2 ring-white ${STATUS_DOT[entry.status]}`} />
+      <span className={`absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full ring-2 ring-white ${STATUS_DOT[photo.status]}`} />
     </div>
   );
 }

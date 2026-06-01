@@ -105,8 +105,12 @@ export interface HistoryEntry {
   final_score: number;
   status: Status;
   // Present on caregiver-submitted check-ins; older hardcoded entries omit them.
+  // A submitted check-in is a before/today pair; photo_url stays = today_photo_url.
   submitted?: boolean;
   created_at?: string;
+  checkin_id?: string;
+  today_photo_url?: string | null;
+  yesterday_photo_url?: string | null;
 }
 
 // GET /patient/<id>/history response.

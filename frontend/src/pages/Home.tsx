@@ -11,9 +11,9 @@ import { useCheckIn } from "../context/CheckInContext";
 import { useLanguage } from "../context/LanguageContext";
 import { resolvePhotoUrl } from "../lib/photos";
 import { STATUS_META } from "../lib/status";
-import { entryKey, entryLabel, entryMeta, type EntryMeta } from "../lib/timeline";
+import { buildPhotoTimeline, type TimelinePhoto } from "../lib/timeline";
 import { usePatientHistory } from "../hooks/usePatientHistory";
-import type { HistoryEntry, PatientHistory } from "../types";
+import type { PatientHistory } from "../types";
 
 function capitalize(text: string): string {
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
@@ -107,12 +107,10 @@ function HomeBody({
   const meta = STATUS_META[latest.status];
   const improving = latest.final_score < first.final_score;
 
-  // Most recent backend check-ins as photo-history tiles. Labels come from the
-  // shared timeline helper so submitted check-ins read "Today"/"Recent" instead
-  // of inventing new recovery days (Day 6/Day 7).
-  const recent = data.history
-    .map((entry, index) => ({ entry, index, meta: entryMeta(data.history, index) }))
-    .slice(-3);
+  // Photo-history tiles from the shared timeline. A submitted check-in renders
+  // as a Before/Today pair (not duplicate "Today" tiles); the last few photos
+  // are shown.
+  const recent = buildPhotoTimeline(data.history).slice(-3);
 
   return (
     <>
@@ -159,8 +157,8 @@ function HomeBody({
         </p>
 
         <div className="grid grid-cols-4 gap-2">
-          {recent.map(({ entry, index, meta }) => (
-            <PhotoHistoryTile key={entryKey(entry, index)} entry={entry} meta={meta} />
+          {recent.map((photo) => (
+            <PhotoHistoryTile key={photo.key} photo={photo} />
           ))}
 
           <button
@@ -180,14 +178,13 @@ function HomeBody({
 // One photo-history tile. Renders the real check-in photo when its resolved
 // URL loads; on a missing/broken image it falls back to the camera placeholder.
 // Failure state is per-tile so one broken image doesn't blank the others.
-function PhotoHistoryTile({ entry, meta }: { entry: HistoryEntry; meta: EntryMeta }) {
+function PhotoHistoryTile({ photo }: { photo: TimelinePhoto }) {
   const { tr, hiClass } = useLanguage();
   const [failed, setFailed] = useState(false);
-  const statusMeta = STATUS_META[entry.status];
-  const src = resolvePhotoUrl(entry.photo_url);
+  const statusMeta = STATUS_META[photo.status];
+  const src = resolvePhotoUrl(photo.url);
   const showImage = Boolean(src) && !failed;
-  const label = entryLabel(meta);
-  const caption = tr(label.en, label.hi);
+  const caption = tr(photo.labelEn, photo.labelHi);
 
   return (
     <div

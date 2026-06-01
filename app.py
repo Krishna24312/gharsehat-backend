@@ -188,7 +188,12 @@ def _history_entry_from_checkin(checkin: dict, display_date: str) -> dict[str, o
     symptom_score = sum(weight for name, weight in SYMPTOM_WEIGHTS.items() if symptoms.get(name))
     return {
         "date": display_date,
+        # photo_url stays as the today/current photo for backwards compatibility.
         "photo_url": checkin.get("today_photo_url"),
+        # Expose the full before/today pair so the UI can show both photos.
+        "today_photo_url": checkin.get("today_photo_url"),
+        "yesterday_photo_url": checkin.get("yesterday_photo_url"),
+        "checkin_id": checkin.get("checkin_id"),
         "change_score": checkin.get("change_score"),
         "symptoms": symptoms,
         "symptom_score": symptom_score,

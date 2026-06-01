@@ -22,7 +22,7 @@ import { useLanguage } from "../context/LanguageContext";
 import { usePatientHistory } from "../hooks/usePatientHistory";
 import { resolvePhotoUrl } from "../lib/photos";
 import { STATUS_META } from "../lib/status";
-import { entryKey, entryLabel, entryMeta } from "../lib/timeline";
+import { beforeTodayPair, buildPhotoTimeline, entryKey, entryLabel, entryMeta } from "../lib/timeline";
 import type { Status } from "../types";
 
 export function Progress() {
@@ -114,6 +114,11 @@ function ProgressBody({
     flagged: Object.values(entry.symptoms).some(Boolean),
   }));
 
+  // Before/today comparison + the de-duplicated photo timeline (a submitted
+  // check-in renders as a Before/Today pair, not repeated "Today" tiles).
+  const pair = beforeTodayPair(data.history);
+  const timelinePhotos = buildPhotoTimeline(data.history);
+
   return (
     <>
       <Card className={latest.status === "red" ? "border-l-4 border-l-red-500" : latest.status === "amber" ? "border-l-4 border-l-amber-500" : "border-l-4 border-l-emerald-500"}>
@@ -145,8 +150,8 @@ function ProgressBody({
           {tr("Before and now", "पहले और अब")}
         </p>
         <div className="grid grid-cols-2 gap-3">
-          <PhotoCompareCard label={tr("Day 1", "दिन 1")} status={first.status} photoUrl={first.photo_url} />
-          <PhotoCompareCard label={tr("Today", "आज")} status={latest.status} photoUrl={latest.photo_url} />
+          <PhotoCompareCard label={tr("Before", "पहले")} status={pair.status} photoUrl={pair.beforeUrl} />
+          <PhotoCompareCard label={tr("Today", "आज")} status={pair.status} photoUrl={pair.todayUrl} />
         </div>
       </div>
 
@@ -154,7 +159,7 @@ function ProgressBody({
         <p className={`mb-3 text-sm font-bold text-stone-700 ${hiClass}`}>
           {tr("Full photo timeline", "पूरी फोटो समयरेखा")}
         </p>
-        <PhotoStrip history={data.history} />
+        <PhotoStrip photos={timelinePhotos} />
       </Card>
 
       <Card>

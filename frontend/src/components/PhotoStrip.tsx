@@ -3,21 +3,19 @@ import { useState } from "react";
 import { useLanguage } from "../context/LanguageContext";
 import { resolvePhotoUrl } from "../lib/photos";
 import { STATUS_META } from "../lib/status";
-import { entryKey, entryLabel, entryMeta, type EntryMeta } from "../lib/timeline";
-import type { HistoryEntry } from "../types";
+import type { TimelinePhoto } from "../lib/timeline";
 
-// One day's thumbnail. Submitted check-ins carry real /uploads URLs (rendered
-// here); hardcoded entries use /static URLs that aren't served, so the <img>
-// fails and we fall back to a placeholder card with a camera icon, label, and
-// status colour (never a fake wound image).
-function DayPhoto({ entry, meta }: { entry: HistoryEntry; meta: EntryMeta }) {
+// One photo tile. Submitted check-ins carry real /uploads URLs (rendered here);
+// hardcoded entries use /static URLs that aren't served, so the <img> fails and
+// we fall back to a placeholder card with a camera icon, label, and status
+// colour (never a fake wound image).
+function DayPhoto({ photo }: { photo: TimelinePhoto }) {
   const { tr, hiClass } = useLanguage();
   const [failed, setFailed] = useState(false);
-  const statusMeta = STATUS_META[entry.status];
-  const src = resolvePhotoUrl(entry.photo_url);
+  const statusMeta = STATUS_META[photo.status];
+  const src = resolvePhotoUrl(photo.url);
   const showImage = Boolean(src) && !failed;
-  const label = entryLabel(meta);
-  const caption = tr(label.en, label.hi);
+  const caption = tr(photo.labelEn, photo.labelHi);
 
   return (
     <div className="flex w-[4.5rem] shrink-0 flex-col items-center gap-1">
@@ -42,12 +40,12 @@ function DayPhoto({ entry, meta }: { entry: HistoryEntry; meta: EntryMeta }) {
   );
 }
 
-/** Horizontal strip of daily check-in thumbnails with status dots. */
-export function PhotoStrip({ history }: { history: HistoryEntry[] }) {
+/** Horizontal strip of day / before / today thumbnails with status dots. */
+export function PhotoStrip({ photos }: { photos: TimelinePhoto[] }) {
   return (
     <div className="no-scrollbar flex gap-3 overflow-x-auto pb-1">
-      {history.map((entry, i) => (
-        <DayPhoto key={entryKey(entry, i)} entry={entry} meta={entryMeta(history, i)} />
+      {photos.map((photo) => (
+        <DayPhoto key={photo.key} photo={photo} />
       ))}
     </div>
   );
