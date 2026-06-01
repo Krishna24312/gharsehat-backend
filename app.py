@@ -41,6 +41,10 @@ STATUS_ORDER: dict[str, int] = {"red": 0, "amber": 1, "green": 2}
 DIST_DIR = os.path.join(os.path.dirname(__file__), "frontend", "dist")
 INDEX_FILE = os.path.join(DIST_DIR, "index.html")
 
+# Hardcoded demo wound photos live here and are served at /static/demo/...
+# (uploaded check-in photos are separate, under uploads/ served at /uploads/...).
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+
 
 def _serve_frontend() -> Response:
     """Serve the built SPA's index.html, or a JSON hint if it isn't built."""
@@ -318,6 +322,13 @@ def submit_checkin() -> Response | tuple[Response, int]:
         ),
         201,
     )
+
+
+@app.route("/static/<path:filename>", methods=["GET"])
+def serve_static(filename: str) -> Response:
+    """Serve hardcoded demo assets (e.g. /static/demo/ravi_day1.jpg); 404 if
+    missing. send_from_directory is path-traversal safe."""
+    return send_from_directory(STATIC_DIR, filename)
 
 
 @app.route("/uploads/<path:filename>", methods=["GET"])

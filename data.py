@@ -45,7 +45,7 @@ def _check_in(name: str, day: int, date: str, change_score: float, *positive: st
     scored = assess({"change_score": change_score, "symptoms": symptoms})
     return {
         "date": date,
-        "photo_url": f"/static/{name.lower()}_day{day}.jpg",
+        "photo_url": f"/static/demo/{name.lower()}_day{day}.jpg",
         "change_score": change_score,
         "symptoms": symptoms,
         "symptom_score": scored["symptom_score"],
