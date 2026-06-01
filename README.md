@@ -1,5 +1,5 @@
 # GharSehat 🩹
-
+- The app is deployed at https://gharsehat.onrender.com
 **A computer-vision-powered burn wound recovery companion for Indian home caregivers — it helps surface day-to-day visual changes in wound photos and prioritizes cases for doctor review.**
 
 Built for techspire hackathon.
