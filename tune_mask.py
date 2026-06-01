@@ -78,14 +78,28 @@ def main() -> None:
             f"{row['border_change']:>8.2f} | {row['change_score']:>8.2f} | {used_label:>22}"
         )
 
-    # Authoritative final score — exactly what /analyze-real returns.
+    # Authoritative final result — exactly what /analyze-real returns.
     result = analyze_pair(yesterday_bytes, today_bytes)
     debug = result["debug"]
     print()
     print(f"valid (growth-positive) thresholds: {debug['valid_thresholds']}")
-    print(f"selected threshold (for shown deltas): {debug['selected_threshold']}")
-    print(f"FINAL growth-filtered median change_score: {result['change_score']}")
-    print(f"note: {debug['note']}")
+    print(f"selected redness threshold (for shown deltas): {debug['selected_threshold']}")
+    print(f"redness_score: {debug['redness_score']}  |  visual_support_score: {debug['visual_support_score']}")
+    print(f"FINAL change_score (max of the two): {result['change_score']}")
+    print(f"redness note: {debug['redness_note']}")
+
+    # Supporting non-diagnostic visual features (dark / yellow / combined area).
+    print()
+    print("Supporting visual features (non-diagnostic, area % increase 0-100):")
+    print(f"  dark_area_delta       : {result['dark_area_delta']}   "
+          f"(yest {debug['dark_area_yesterday']} -> today {debug['dark_area_today']})")
+    print(f"  yellow_area_delta     : {result['yellow_area_delta']}   "
+          f"(yest {debug['yellow_area_yesterday']} -> today {debug['yellow_area_today']})")
+    print(f"  wound_area_delta      : {result['wound_area_delta']}   "
+          f"(combined yest {debug['combined_area_yesterday']} -> today {debug['combined_area_today']})")
+    print(f"  combined_border_change: {result['combined_border_change']}   "
+          f"(bbox yest {debug['combined_bbox_yesterday']} -> today {debug['combined_bbox_today']})")
+    print(f"  note: {debug['note']}")
 
 
 if __name__ == "__main__":
